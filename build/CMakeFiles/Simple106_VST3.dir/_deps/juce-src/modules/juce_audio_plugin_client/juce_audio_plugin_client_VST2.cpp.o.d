@@ -1,6 +1,0 @@
-CMakeFiles/Simple106_VST3.dir/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST2.cpp.o: \
- /home/Atlin/Simple106/build/_deps/juce-src/modules/juce_audio_plugin_client/juce_audio_plugin_client_VST2.cpp \
- /usr/include/stdc-predef.h \
- /home/Atlin/Simple106/build/_deps/juce-src/modules/juce_core/system/juce_CompilerWarnings.h \
- /home/Atlin/Simple106/build/_deps/juce-src/modules/juce_core/system/juce_TargetPlatform.h \
- /home/Atlin/Simple106/build/_deps/juce-src/modules/juce_audio_plugin_client/detail/juce_CheckSettingMacros.h
