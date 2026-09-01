@@ -123,7 +123,7 @@ buttonKeyboard(p.keyboardState)
                 audioProcessor.loadPatchXml(presetFile.loadFileAsString());
             }
         }
-        repaint();
+        updateUIFromParameters();
     };
     addAndMakeVisible(presetBox);
 
@@ -137,7 +137,7 @@ buttonKeyboard(p.keyboardState)
     initPresetBtn.onClick = [this]() {
         audioProcessor.loadFactoryPreset(0);
         presetBox.setSelectedId(1, juce::dontSendNotification);
-        repaint();
+        updateUIFromParameters();
     };
     addAndMakeVisible(initPresetBtn);
 
@@ -276,16 +276,12 @@ buttonKeyboard(p.keyboardState)
     voiceVarModeBox.onChange = [this]() { updateVoiceKnobAttachments(); };
     updateVoiceKnobAttachments();
 
+    // Voice Cycling Button (with ButtonAttachment)
     cycleBtn.setClickingTogglesState(true);
     cycleBtn.setWantsKeyboardFocus(false);
-    cycleBtn.setToggleState(audioProcessor.apvts.getRawParameterValue("cycleMode")->load() > 0.5f, juce::dontSendNotification);
-    cycleBtn.onClick = [this]() {
-        bool on = cycleBtn.getToggleState();
-        if (auto* param = audioProcessor.apvts.getParameter("cycleMode"))
-            param->setValueNotifyingHost(on ? 1.0f : 0.0f);
-        repaint(655, 258, 250, 205);
-    };
     addAndMakeVisible(cycleBtn);
+    btnAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+        audioProcessor.apvts, "cycleMode", cycleBtn));
 
     const juce::StringArray fullTargets = {
         "None", "LPF Cutoff", "LPF Reso", "HPF Cutoff", "Env Mod",
@@ -361,17 +357,12 @@ buttonKeyboard(p.keyboardState)
     };
     addAndMakeVisible(seqClearBtn);
 
-    // Arp Module
+    // Arp Module (with ButtonAttachment)
     arpToggleBtn.setClickingTogglesState(true);
     arpToggleBtn.setWantsKeyboardFocus(false);
-    arpToggleBtn.setToggleState(audioProcessor.apvts.getRawParameterValue("arpEnable")->load() > 0.5f, juce::dontSendNotification);
-    arpToggleBtn.onClick = [this]() {
-        bool on = arpToggleBtn.getToggleState();
-        if (auto* param = audioProcessor.apvts.getParameter("arpEnable"))
-            param->setValueNotifyingHost(on ? 1.0f : 0.0f);
-        repaint(14, 470, 892, 46);
-    };
     addAndMakeVisible(arpToggleBtn);
+    btnAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+        audioProcessor.apvts, "arpEnable", arpToggleBtn));
 
     currentArpIdx = static_cast<int>(audioProcessor.apvts.getRawParameterValue("arpMode")->load());
 
@@ -393,17 +384,12 @@ buttonKeyboard(p.keyboardState)
     };
     addAndMakeVisible(arpNextBtn);
 
-    // Chord Module
+    // Chord Module (with ButtonAttachment)
     chordToggleBtn.setClickingTogglesState(true);
     chordToggleBtn.setWantsKeyboardFocus(false);
-    chordToggleBtn.setToggleState(audioProcessor.apvts.getRawParameterValue("chordEnable")->load() > 0.5f, juce::dontSendNotification);
-    chordToggleBtn.onClick = [this]() {
-        bool on = chordToggleBtn.getToggleState();
-        if (auto* param = audioProcessor.apvts.getParameter("chordEnable"))
-            param->setValueNotifyingHost(on ? 1.0f : 0.0f);
-        repaint(14, 470, 892, 46);
-    };
     addAndMakeVisible(chordToggleBtn);
+    btnAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+        audioProcessor.apvts, "chordEnable", chordToggleBtn));
 
     currentChordIdx = static_cast<int>(audioProcessor.apvts.getRawParameterValue("chordType")->load());
 
@@ -471,7 +457,7 @@ buttonKeyboard(p.keyboardState)
 
     addAndMakeVisible(buttonKeyboard);
 
-    // Add Modal Save Patch Dialog (starts hidden)
+    // Modal Save Dialog
     addChildComponent(saveDialog);
 
     setWantsKeyboardFocus(true);
@@ -483,6 +469,19 @@ Simple106AudioProcessorEditor::~Simple106AudioProcessorEditor() {
     stopTimer();
     removeKeyListener(this);
     setLookAndFeel(nullptr);
+}
+
+void Simple106AudioProcessorEditor::updateUIFromParameters() {
+    currentChordIdx = static_cast<int>(audioProcessor.apvts.getRawParameterValue("chordType")->load());
+    currentArpIdx   = static_cast<int>(audioProcessor.apvts.getRawParameterValue("arpMode")->load());
+    currentPagesIdx = static_cast<int>(audioProcessor.apvts.getRawParameterValue("seqPages")->load());
+    audioProcessor.sequencer.setNumPages(currentPagesIdx + 1);
+
+    int varMode = static_cast<int>(audioProcessor.apvts.getRawParameterValue("voiceVarMode")->load());
+    voiceVarModeBox.setSelectedId(varMode + 1, juce::dontSendNotification);
+
+    updateVoiceKnobAttachments();
+    repaint();
 }
 
 void Simple106AudioProcessorEditor::showSaveDialog() {
@@ -612,7 +611,7 @@ void Simple106AudioProcessorEditor::renderBackgroundCache() {
         drawSection({222, 258, 425, 205}, "MODULATION (LFO 1, 2 & 3)", juce::Colour(0xffd35400));
         drawSection({655, 258, 250, 205}, "VOICE VARIATION MATRIX", juce::Colour(0xffc0392b));
 
-        // Sub-column dividers inside Modulation section
+        // Sub-column dividers
         g.setColour(juce::Colour(0xffbac0cc));
         g.drawVerticalLine(364, 280.0f, 452.0f);
         g.drawVerticalLine(502, 280.0f, 452.0f);
@@ -665,11 +664,10 @@ void Simple106AudioProcessorEditor::timerCallback() {
                                      currentSeqPage
     );
 
-    // Instant Physical/Active Key Feedback (Zero Lag, No Release-Tail Hanging)
+    // Real-Time Active Key Illumination
     std::array<bool, 25> activeKeys { false };
     int currentStart = 48 + buttonKeyboard.getOctaveOffset();
 
-    // 1. Direct Physical Key Checks from KeyboardState
     for (int i = 0; i < 25; ++i) {
         int noteNum = currentStart + i;
         if (audioProcessor.keyboardState.isNoteOn(1, noteNum)) {
@@ -677,7 +675,6 @@ void Simple106AudioProcessorEditor::timerCallback() {
         }
     }
 
-    // 2. Chord Mode Visual Key Illuminations for Active Physical Keys
     bool chordOn = audioProcessor.apvts.getRawParameterValue("chordEnable")->load() > 0.5f;
     int chordIdx = static_cast<int>(audioProcessor.apvts.getRawParameterValue("chordType")->load());
     if (chordOn) {
@@ -697,7 +694,7 @@ void Simple106AudioProcessorEditor::timerCallback() {
 
     buttonKeyboard.setActiveNotes(activeKeys);
 
-    // QWERTY Physical Key Release Check
+    // QWERTY Key State Synchronizer
     if (!saveDialog.isVisible()) {
         for (size_t i = 0; i < NUM_QWERTY_KEYS; ++i) {
             bool isDown = juce::KeyPress::isKeyCurrentlyDown(qwertyMappings[i].keyCode);

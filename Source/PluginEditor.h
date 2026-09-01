@@ -53,6 +53,7 @@ public juce::KeyListener,
         bool keyStateChanged(bool isKeyDown, juce::Component* originatingComponent) override;
 
         void refreshPresetList();
+        void updateUIFromParameters();
 
     private:
         Simple106AudioProcessor& audioProcessor;

@@ -29,7 +29,6 @@ public:
             renderedFreq = currentFreq;
         }
 
-        // Always trigger envelopes into Attack -> Sustain
         ampEnv.noteOn();
         filterEnv.noteOn();
         active = true;
@@ -97,15 +96,16 @@ public:
         dco2.setPulseWidth(dco2PWM);
         float sigDco2 = dco2.process() * dco2Level;
 
-        // Sub Oscillator
+        // Sub Oscillator (-1 Octave Square)
         subPhase += (baseFreq * 0.5) / sampleRate;
         if (subPhase >= 1.0) subPhase -= 1.0;
         float sigSub = ((subPhase < 0.5) ? 1.0f : -1.0f) * subLevel;
 
-        // Noise Generator
+        // White Noise
         float sigNoise = (((float)rand() / (float)RAND_MAX) * 2.0f - 1.0f) * noiseLevel;
 
-        float voiceMix = sigDco1 + sigDco2 + sigSub + sigNoise;
+        // Balanced Analog Voice Mixer (Eliminates internal filter overloading)
+        float voiceMix = (sigDco1 * 0.70f) + (sigDco2 * 0.70f) + (sigSub * 0.60f) + (sigNoise * 0.40f);
 
         float filterEnvVal = filterEnv.process();
         float ampEnvVal = ampEnv.process();

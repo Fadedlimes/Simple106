@@ -162,6 +162,9 @@ juce::String Simple106AudioProcessor::createPatchXml(const juce::String& patchNa
 }
 
 void Simple106AudioProcessor::loadPatchXml(const juce::String& xmlString) {
+    sequencer.clearArp();
+    for (auto& v : voiceManager.getVoices()) v.noteOff();
+
     auto xml = juce::XmlDocument::parse(xmlString);
     if (xml != nullptr) {
         if (xml->hasTagName(apvts.state.getType()) || xml->hasTagName("Parameters")) {
@@ -187,11 +190,42 @@ void Simple106AudioProcessor::loadPatchXml(const juce::String& xmlString) {
 }
 
 void Simple106AudioProcessor::loadFactoryPreset(int presetIndex) {
-    auto setParam = [this](const char* id, float val) {
+    sequencer.clearArp();
+    for (auto& v : voiceManager.getVoices()) v.noteOff();
+
+    auto setParam = [this](const juce::String& id, float val) {
         if (auto* p = apvts.getParameter(id))
             p->setValueNotifyingHost(p->convertTo0to1(val));
     };
 
+    // --- 1. FULL BASELINE RESET FOR ALL PRESETS ---
+    setParam("arpEnable", 0.0f);
+    setParam("arpMode", 0.0f);
+    setParam("chordEnable", 0.0f);
+    setParam("chordType", 0.0f);
+    setParam("cycleMode", 0.0f);
+    setParam("playMode", 0.0f);       // Poly
+    setParam("voiceVarMode", 0.0f);   // Panning mode
+
+    // Clean Voice Variation Knobs (Center all pans, 0 all tuning offsets)
+    for (int i = 1; i <= 6; ++i) {
+        setParam("vPan" + juce::String(i), 0.0f);
+        setParam("vTune" + juce::String(i), 0.0f);
+    }
+
+    setParam("subLevel", 0.0f);
+    setParam("noiseLevel", 0.0f);
+    setParam("glideTime", 0.05f);
+    setParam("hpfCutoff", 20.0f);
+    setParam("lfo1ToFilter", 0.0f);
+    setParam("lfo1ToPitch", 0.0f);
+    setParam("lfo2Amount", 0.0f);
+    setParam("lfo3Amount", 0.0f);
+    setParam("lfo2Target", 0.0f);
+    setParam("lfo3Target", 0.0f);
+    setParam("delayPingPong", 1.0f);
+
+    // --- 2. APPLY PRESET-SPECIFIC SETTINGS ---
     switch (presetIndex) {
         case 0: // 01. Init Poly
             setParam("dco1Morph", 0.33f); setParam("dco1Level", 0.8f);
@@ -219,7 +253,7 @@ void Simple106AudioProcessor::loadFactoryPreset(int presetIndex) {
             break;
 
         case 3: // 04. Supersaw Hoover
-            setParam("playMode", 2.0f);
+            setParam("playMode", 2.0f); // Unison
             setParam("dco1Morph", 0.33f); setParam("dco1Level", 0.9f);
             setParam("dco2Morph", 0.33f); setParam("dco2Level", 0.9f); setParam("dco2Cents", 25.0f);
             setParam("subLevel", 0.6f); setParam("lpfCutoff", 5000.0f); setParam("lpfRes", 0.3f); setParam("envMod", 0.6f);
@@ -228,7 +262,7 @@ void Simple106AudioProcessor::loadFactoryPreset(int presetIndex) {
             break;
 
         case 4: // 05. Acid 106 Lead
-            setParam("playMode", 1.0f);
+            setParam("playMode", 1.0f); // Mono
             setParam("glideTime", 0.06f);
             setParam("dco1Morph", 0.33f); setParam("dco1Level", 0.9f); setParam("dco2Level", 0.0f); setParam("subLevel", 0.5f);
             setParam("lpfCutoff", 1200.0f); setParam("lpfRes", 0.75f); setParam("envMod", 0.8f);
@@ -238,7 +272,7 @@ void Simple106AudioProcessor::loadFactoryPreset(int presetIndex) {
             break;
 
         case 5: // 06. 80s Arp Dream
-            setParam("arpEnable", 1.0f); setParam("arpMode", 2.0f);
+            setParam("arpEnable", 1.0f); setParam("arpMode", 2.0f); // U-D
             setParam("dco1Morph", 0.5f); setParam("dco1PWM", 0.6f); setParam("dco1Level", 0.8f);
             setParam("dco2Morph", 0.33f); setParam("dco2Level", 0.5f); setParam("dco2Semi", 12.0f);
             setParam("lpfCutoff", 2800.0f); setParam("lpfRes", 0.35f); setParam("envMod", 0.55f);
@@ -247,7 +281,7 @@ void Simple106AudioProcessor::loadFactoryPreset(int presetIndex) {
             break;
 
         case 6: // 07. MonoPoly 6-Voice Drift
-            setParam("cycleMode", 1.0f);
+            setParam("cycleMode", 1.0f); // Voice Cycle ON
             setParam("dco1Morph", 0.33f); setParam("dco1Level", 0.8f);
             setParam("dco2Morph", 0.7f); setParam("dco2Level", 0.6f); setParam("dco2Cents", 15.0f);
             setParam("vPan1", -0.8f); setParam("vPan2", 0.8f); setParam("vPan3", -0.4f);
@@ -257,7 +291,7 @@ void Simple106AudioProcessor::loadFactoryPreset(int presetIndex) {
             break;
 
         case 7: // 08. Space Pluck
-            setParam("dco1Morph", 0.0f); setParam("dco1Level", 0.9f);
+            setParam("dco1Morph", 0.0f); setParam("dco1Level", 0.9f); // Triangle
             setParam("dco2Morph", 0.8f); setParam("dco2Level", 0.4f); setParam("dco2Semi", 7.0f);
             setParam("lpfCutoff", 2200.0f); setParam("lpfRes", 0.4f); setParam("envMod", 0.7f);
             setParam("filtAttack", 0.001f); setParam("filtDecay", 0.2f); setParam("filtSustain", 0.0f);
@@ -319,7 +353,7 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
     if (auto* playHead = getPlayHead()) {
         if (auto pos = playHead->getPosition()) {
             if (pos->getBpm()) hostBpm = *pos->getBpm();
-            isHostPlaying = pos->getIsPlaying(); // Direct boolean return in JUCE 8
+            isHostPlaying = pos->getIsPlaying();
             if (pos->getPpqPosition()) ppqPos = *pos->getPpqPosition();
         }
     }
@@ -450,21 +484,23 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
     delay.setParameters(finalDelayTimeSec, dFb, dDamp, dMix, dPingPong);
     reverb.setParameters(rSize, rDamp, rMix);
 
-    // Apply Voice Variation
+    // Apply Voice Variation (Mode-dependent: Pan vs Tune)
     auto& voices = voiceManager.getVoices();
     for (int i = 0; i < 6; ++i) {
-        if (varMode == 0) {
+        if (varMode == 0) { // PANNING
             float pVal = apvts.getRawParameterValue("vPan" + juce::String(i + 1))->load();
             voices[i].setVoicePan(pVal);
             voices[i].setVoiceTuneOffset(0.0f);
-        } else {
+        } else { // TUNING
             float tVal = apvts.getRawParameterValue("vTune" + juce::String(i + 1))->load();
             voices[i].setVoicePan(0.0f);
             voices[i].setVoiceTuneOffset(tVal);
         }
     }
 
-    // 3. Process MIDI
+    // 3. Process MIDI with Strict Note Tracking
+    static std::map<int, std::vector<int>> arpRegisteredNotes;
+
     for (const auto metadata : midiMessages) {
         auto msg = metadata.getMessage();
         int noteNum = msg.getNoteNumber();
@@ -474,10 +510,12 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
                 if (arpOn) {
                     if (chordOn) {
                         auto chordNotes = voiceManager.getChordIntervals(noteNum);
+                        arpRegisteredNotes[noteNum] = chordNotes;
                         for (int n : chordNotes) {
                             sequencer.addArpNote(n);
                         }
                     } else {
+                        arpRegisteredNotes[noteNum] = { noteNum };
                         sequencer.addArpNote(noteNum);
                     }
                 } else {
@@ -488,11 +526,10 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
                 }
             } else {
                 if (arpOn) {
-                    if (chordOn) {
-                        auto chordNotes = voiceManager.getChordIntervals(noteNum);
-                        for (int n : chordNotes) {
-                            sequencer.removeArpNote(n);
-                        }
+                    auto it = arpRegisteredNotes.find(noteNum);
+                    if (it != arpRegisteredNotes.end()) {
+                        for (int n : it->second) sequencer.removeArpNote(n);
+                        arpRegisteredNotes.erase(it);
                     } else {
                         sequencer.removeArpNote(noteNum);
                     }
@@ -502,11 +539,10 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
             }
         } else if (msg.isNoteOff()) {
             if (arpOn) {
-                if (chordOn) {
-                    auto chordNotes = voiceManager.getChordIntervals(noteNum);
-                    for (int n : chordNotes) {
-                        sequencer.removeArpNote(n);
-                    }
+                auto it = arpRegisteredNotes.find(noteNum);
+                if (it != arpRegisteredNotes.end()) {
+                    for (int n : it->second) sequencer.removeArpNote(n);
+                    arpRegisteredNotes.erase(it);
                 } else {
                     sequencer.removeArpNote(noteNum);
                 }
@@ -515,11 +551,12 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
             }
         } else if (msg.isAllNotesOff() || msg.isAllSoundOff()) {
             sequencer.clearArp();
+            arpRegisteredNotes.clear();
             for (auto& v : voiceManager.getVoices()) v.noteOff();
         }
     }
 
-    // Arpeggiator Clock Processing
+    // Direct Safe Arpeggiator Clock Processing
     int arpNote = -1;
     float arpVel = 0.85f;
     bool arpOff = false;
@@ -567,7 +604,7 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
     auto* outL = buffer.getWritePointer(0);
     auto* outR = buffer.getWritePointer(1);
 
-    float gainComp = (playM == 2) ? 0.40f : 0.85f;
+    float gainComp = (playM == 2) ? 0.35f : 0.45f;
 
     for (int sample = 0; sample < buffer.getNumSamples(); ++sample) {
         float lfo1Val = lfo1.process();
@@ -651,8 +688,12 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
 
         reverb.process(delL, delR);
 
-        outL[sample] = std::tanh(delL * modMaster);
-        outR[sample] = std::tanh(delR * modMaster);
+        auto softSaturate = [](float x) -> float {
+            return std::tanh(x * 0.85f) * 1.176f;
+        };
+
+        outL[sample] = std::clamp(softSaturate(delL * modMaster), -1.0f, 1.0f);
+        outR[sample] = std::clamp(softSaturate(delR * modMaster), -1.0f, 1.0f);
     }
 }
 
