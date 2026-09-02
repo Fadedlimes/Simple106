@@ -81,5 +81,18 @@ private:
 
     std::vector<std::unique_ptr<juce::MidiInput>> activeMidiInputs;
 
+    // Physical MIDI Key & Mode State Tracking
+    std::array<bool, 128> physicalKeysHeld {};
+    std::array<float, 128> physicalKeyVelocities {};
+
+    bool lastArpOn = false;
+    bool lastChordOn = false;
+    int lastChordType = 0;
+    int lastPlayMode = 0;
+
+    int lastArpPlayingNote = -1;
+    int lastSeqPlayingNote = -1;
+    bool lastHostPlaying = false;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Simple106AudioProcessor)
 };

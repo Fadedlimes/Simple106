@@ -42,6 +42,12 @@ public:
             arpHeldNotes[static_cast<size_t>(numArpHeld)] = noteNumber;
             arpAsPlayedNotes[static_cast<size_t>(numArpHeld)] = noteNumber;
             numArpHeld++;
+            if (numArpHeld == 1) {
+                arpIndex = -1;
+                arpDirectionUp = true;
+                double samplesPer16th = (sampleRate * 60.0) / (currentBpm * 4.0);
+                arpSampleCounter = samplesPer16th;
+            }
         }
     }
 
@@ -66,15 +72,15 @@ public:
             numArpHeld--;
         }
         if (numArpHeld == 0) {
-            arpIndex = 0;
-            arpDirectionUp = true;
+            clearArp();
         }
     }
 
     void clearArp() {
         numArpHeld = 0;
-        arpIndex = 0;
+        arpIndex = -1;
         arpDirectionUp = true;
+        arpSampleCounter = 0.0;
     }
 
     bool advanceArpClock(int numSamples, int& outNote, float& outVel, bool& outNoteOff) {
@@ -100,15 +106,23 @@ public:
                     break;
 
                 case ArpDown:
-                    arpIndex = (arpIndex - 1 + numArpHeld) % numArpHeld;
+                    if (arpIndex <= 0 || arpIndex >= numArpHeld) {
+                        arpIndex = numArpHeld - 1;
+                    } else {
+                        arpIndex--;
+                    }
                     outNote = sortedNotes[static_cast<size_t>(arpIndex)];
                     break;
 
                 case ArpUpDown:
                     if (numArpHeld <= 1) {
+                        arpIndex = 0;
                         outNote = sortedNotes[0];
                     } else {
-                        if (arpDirectionUp) {
+                        if (arpIndex < 0) {
+                            arpIndex = 0;
+                            arpDirectionUp = true;
+                        } else if (arpDirectionUp) {
                             arpIndex++;
                             if (arpIndex >= numArpHeld - 1) {
                                 arpIndex = numArpHeld - 1;
@@ -126,7 +140,8 @@ public:
                     break;
 
                 case ArpRandom:
-                    outNote = sortedNotes[static_cast<size_t>(std::rand() % numArpHeld)];
+                    arpIndex = std::rand() % numArpHeld;
+                    outNote = sortedNotes[static_cast<size_t>(arpIndex)];
                     break;
 
                 case ArpAsPlayed:

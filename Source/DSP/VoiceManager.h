@@ -195,6 +195,16 @@ public:
         }
     }
 
+    void allNotesOff() {
+        for (int i = 0; i < NUM_VOICES; ++i) {
+            isKeyHeld[i] = false;
+            voices[i].noteOff();
+        }
+        activeChords.clear();
+        monoNoteStack.clear();
+        unisonNoteStack.clear();
+    }
+
     std::array<SynthVoice, NUM_VOICES>& getVoices() {
         return voices;
     }

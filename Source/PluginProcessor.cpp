@@ -162,8 +162,12 @@ juce::String Simple106AudioProcessor::createPatchXml(const juce::String& patchNa
 }
 
 void Simple106AudioProcessor::loadPatchXml(const juce::String& xmlString) {
+    physicalKeysHeld.fill(false);
+    physicalKeyVelocities.fill(0.0f);
+    lastArpPlayingNote = -1;
+    lastSeqPlayingNote = -1;
     sequencer.clearArp();
-    for (auto& v : voiceManager.getVoices()) v.noteOff();
+    voiceManager.allNotesOff();
 
     auto xml = juce::XmlDocument::parse(xmlString);
     if (xml != nullptr) {
@@ -190,8 +194,12 @@ void Simple106AudioProcessor::loadPatchXml(const juce::String& xmlString) {
 }
 
 void Simple106AudioProcessor::loadFactoryPreset(int presetIndex) {
+    physicalKeysHeld.fill(false);
+    physicalKeyVelocities.fill(0.0f);
+    lastArpPlayingNote = -1;
+    lastSeqPlayingNote = -1;
     sequencer.clearArp();
-    for (auto& v : voiceManager.getVoices()) v.noteOff();
+    voiceManager.allNotesOff();
 
     auto setParam = [this](const juce::String& id, float val) {
         if (auto* p = apvts.getParameter(id))
@@ -312,6 +320,16 @@ void Simple106AudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlo
     sequencer.setSampleRate(sampleRate);
     keyboardState.reset();
 
+    physicalKeysHeld.fill(false);
+    physicalKeyVelocities.fill(0.0f);
+    lastArpPlayingNote = -1;
+    lastSeqPlayingNote = -1;
+    lastHostPlaying = false;
+    lastArpOn = false;
+    lastChordOn = false;
+    lastChordType = 0;
+    lastPlayMode = 0;
+
     activeMidiInputs.clear();
     auto midiDevices = juce::MidiInput::getAvailableDevices();
     for (const auto& dev : midiDevices) {
@@ -328,6 +346,13 @@ void Simple106AudioProcessor::releaseResources() {
     }
     activeMidiInputs.clear();
     keyboardState.reset();
+
+    physicalKeysHeld.fill(false);
+    physicalKeyVelocities.fill(0.0f);
+    lastArpPlayingNote = -1;
+    lastSeqPlayingNote = -1;
+    voiceManager.allNotesOff();
+    sequencer.clearArp();
 }
 
 void Simple106AudioProcessor::handleIncomingMidiMessage(juce::MidiInput*, const juce::MidiMessage& message) {
@@ -360,7 +385,6 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
     sequencer.setTempo(static_cast<float>(hostBpm));
 
     // DAW Play/Stop Synchronization
-    static bool lastHostPlaying = false;
     if (isHostPlaying != lastHostPlaying) {
         sequencer.isPlaying = isHostPlaying;
         if (isHostPlaying) {
@@ -498,69 +522,146 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
         }
     }
 
-    // 3. Process MIDI with Strict Note Tracking
-    static std::map<int, std::vector<int>> arpRegisteredNotes;
+    // 3. Dynamic Mode Transitions (Seamless Arp & Chord Hand-off)
+    if (arpOn != lastArpOn) {
+        if (arpOn) {
+            // Turning ARP ON: Silence any sustained poly voices and populate ARP buffer with held keys
+            voiceManager.allNotesOff();
+            sequencer.clearArp();
+            lastArpPlayingNote = -1;
 
+            for (int n = 0; n < 128; ++n) {
+                if (physicalKeysHeld[static_cast<size_t>(n)]) {
+                    if (chordOn) {
+                        auto chordNotes = voiceManager.getChordIntervals(n);
+                        for (int cn : chordNotes) sequencer.addArpNote(cn);
+                    } else {
+                        sequencer.addArpNote(n);
+                    }
+                }
+            }
+        } else {
+            // Turning ARP OFF: Stop ARP note and re-trigger currently held keys as poly/mono/unison
+            sequencer.clearArp();
+            if (lastArpPlayingNote >= 0) {
+                voiceManager.handleNoteOff(lastArpPlayingNote);
+                lastArpPlayingNote = -1;
+            }
+            voiceManager.allNotesOff();
+
+            for (int n = 0; n < 128; ++n) {
+                if (physicalKeysHeld[static_cast<size_t>(n)]) {
+                    voiceManager.handleNoteOn(n, physicalKeyVelocities[static_cast<size_t>(n)], playM != 0, glide);
+                }
+            }
+        }
+        lastArpOn = arpOn;
+    }
+
+    if (chordOn != lastChordOn || chordIdx != lastChordType) {
+        if (arpOn) {
+            // Rebuild ARP note buffer with new chord voicing for held keys
+            sequencer.clearArp();
+            for (int n = 0; n < 128; ++n) {
+                if (physicalKeysHeld[static_cast<size_t>(n)]) {
+                    if (chordOn) {
+                        auto chordNotes = voiceManager.getChordIntervals(n);
+                        for (int cn : chordNotes) sequencer.addArpNote(cn);
+                    } else {
+                        sequencer.addArpNote(n);
+                    }
+                }
+            }
+        } else {
+            // Re-trigger held keys with new chord voicing in normal poly mode
+            voiceManager.allNotesOff();
+            for (int n = 0; n < 128; ++n) {
+                if (physicalKeysHeld[static_cast<size_t>(n)]) {
+                    voiceManager.handleNoteOn(n, physicalKeyVelocities[static_cast<size_t>(n)], playM != 0, glide);
+                }
+            }
+        }
+        lastChordOn = chordOn;
+        lastChordType = chordIdx;
+    }
+
+    if (playM != lastPlayMode) {
+        if (!arpOn) {
+            voiceManager.allNotesOff();
+            for (int n = 0; n < 128; ++n) {
+                if (physicalKeysHeld[static_cast<size_t>(n)]) {
+                    voiceManager.handleNoteOn(n, physicalKeyVelocities[static_cast<size_t>(n)], playM != 0, glide);
+                }
+            }
+        }
+        lastPlayMode = playM;
+    }
+
+    // 4. Process Incoming MIDI Stream
     for (const auto metadata : midiMessages) {
         auto msg = metadata.getMessage();
         int noteNum = msg.getNoteNumber();
 
-        if (msg.isNoteOn()) {
-            if (msg.getVelocity() > 0) {
-                if (arpOn) {
-                    if (chordOn) {
-                        auto chordNotes = voiceManager.getChordIntervals(noteNum);
-                        arpRegisteredNotes[noteNum] = chordNotes;
-                        for (int n : chordNotes) {
-                            sequencer.addArpNote(n);
-                        }
-                    } else {
-                        arpRegisteredNotes[noteNum] = { noteNum };
-                        sequencer.addArpNote(noteNum);
+        if (noteNum < 0 || noteNum > 127) continue;
+
+        if (msg.isNoteOn() && msg.getVelocity() > 0) {
+            float vel = msg.getFloatVelocity();
+            physicalKeysHeld[static_cast<size_t>(noteNum)] = true;
+            physicalKeyVelocities[static_cast<size_t>(noteNum)] = vel;
+
+            if (arpOn) {
+                if (chordOn) {
+                    auto chordNotes = voiceManager.getChordIntervals(noteNum);
+                    for (int n : chordNotes) {
+                        sequencer.addArpNote(n);
                     }
                 } else {
-                    if (sequencer.isRecording) {
-                        sequencer.recordNote(noteNum);
-                    }
-                    voiceManager.handleNoteOn(noteNum, msg.getFloatVelocity(), playM != 0, glide);
+                    sequencer.addArpNote(noteNum);
                 }
             } else {
-                if (arpOn) {
-                    auto it = arpRegisteredNotes.find(noteNum);
-                    if (it != arpRegisteredNotes.end()) {
-                        for (int n : it->second) sequencer.removeArpNote(n);
-                        arpRegisteredNotes.erase(it);
-                    } else {
-                        sequencer.removeArpNote(noteNum);
+                if (sequencer.isRecording) {
+                    sequencer.recordNote(noteNum);
+                }
+                voiceManager.handleNoteOn(noteNum, vel, playM != 0, glide);
+            }
+        } else if (msg.isNoteOff() || (msg.isNoteOn() && msg.getVelocity() == 0)) {
+            physicalKeysHeld[static_cast<size_t>(noteNum)] = false;
+            physicalKeyVelocities[static_cast<size_t>(noteNum)] = 0.0f;
+
+            if (arpOn) {
+                if (chordOn) {
+                    auto chordNotes = voiceManager.getChordIntervals(noteNum);
+                    for (int n : chordNotes) {
+                        sequencer.removeArpNote(n);
                     }
                 } else {
-                    voiceManager.handleNoteOff(noteNum);
-                }
-            }
-        } else if (msg.isNoteOff()) {
-            if (arpOn) {
-                auto it = arpRegisteredNotes.find(noteNum);
-                if (it != arpRegisteredNotes.end()) {
-                    for (int n : it->second) sequencer.removeArpNote(n);
-                    arpRegisteredNotes.erase(it);
-                } else {
                     sequencer.removeArpNote(noteNum);
+                }
+
+                if (sequencer.getNumArpHeld() == 0) {
+                    if (lastArpPlayingNote >= 0) {
+                        voiceManager.handleNoteOff(lastArpPlayingNote);
+                        lastArpPlayingNote = -1;
+                    }
+                    voiceManager.allNotesOff();
                 }
             } else {
                 voiceManager.handleNoteOff(noteNum);
             }
-        } else if (msg.isAllNotesOff() || msg.isAllSoundOff()) {
+        } else if (msg.isAllNotesOff() || msg.isAllSoundOff() || msg.isResetAllControllers()) {
+            physicalKeysHeld.fill(false);
+            physicalKeyVelocities.fill(0.0f);
             sequencer.clearArp();
-            arpRegisteredNotes.clear();
-            for (auto& v : voiceManager.getVoices()) v.noteOff();
+            lastArpPlayingNote = -1;
+            lastSeqPlayingNote = -1;
+            voiceManager.allNotesOff();
         }
     }
 
-    // Direct Safe Arpeggiator Clock Processing
+    // 5. Arpeggiator Clock Processing
     int arpNote = -1;
     float arpVel = 0.85f;
     bool arpOff = false;
-    static int lastArpPlayingNote = -1;
 
     if (arpOn) {
         if (sequencer.advanceArpClock(buffer.getNumSamples(), arpNote, arpVel, arpOff)) {
@@ -580,11 +681,10 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
         }
     }
 
-    // Sequencer Clock processing
+    // 6. Sequencer Clock Processing
     int seqNote = -1;
     float seqVel = 0.8f;
     bool seqOff = false;
-    static int lastSeqPlayingNote = -1;
 
     if (!arpOn && sequencer.advanceStepClock(buffer.getNumSamples(), seqNote, seqVel, seqOff)) {
         if (lastSeqPlayingNote >= 0) {
@@ -597,10 +697,10 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
             voiceManager.handleNoteOff(lastSeqPlayingNote);
             lastSeqPlayingNote = -1;
         }
-        for (auto& v : voiceManager.getVoices()) v.noteOff();
+        voiceManager.allNotesOff();
     }
 
-    // 4. Render Audio Block
+    // 7. Render Audio Block
     auto* outL = buffer.getWritePointer(0);
     auto* outR = buffer.getWritePointer(1);
 
