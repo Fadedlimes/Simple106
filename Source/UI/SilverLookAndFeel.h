@@ -301,7 +301,7 @@ public:
         textBounds.removeFromRight(16.0f);
         g.setColour(theme.comboText);
         g.setFont(juce::FontOptions(12.0f).withStyle("Bold"));
-        g.drawFittedText(box.getText(), textBounds, juce::Justification::centredLeft, 1);
+        g.drawFittedText(box.getText(), textBounds.toNearestInt(), juce::Justification::centredLeft, 1, 0.8f);
 
         auto arrowBox = juce::Rectangle<float>(static_cast<float>(width - 18), 0.0f,
                                                14.0f, static_cast<float>(height));
