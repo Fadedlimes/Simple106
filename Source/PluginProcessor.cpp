@@ -104,8 +104,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout Simple106AudioProcessor::cre
                                                                   juce::StringArray{"1 PG [16]", "2 PG [32]", "3 PG [48]", "4 PG [64]"}, 3));
 
     // Theme Selector
-    params.push_back(std::make_unique<juce::AudioParameterChoice>("ledTheme", "Theme",
-                                                                  juce::StringArray{"Vintage Red", "Neon Cyan", "Acid Green", "Amber Gold", "Solar Yellow", "Ultraviolet", "Ghost White"}, 0));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>("guiTheme", "Theme",
+                                                                  juce::StringArray{"Classic Silver", "Midnight Blue", "Vintage Wood", "Stealth Dark"}, 0));
 
     // Master FX Suite
     params.push_back(std::make_unique<juce::AudioParameterChoice>("chorusMode", "Chorus",
@@ -482,7 +482,7 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
     float glide     = apvts.getRawParameterValue("glideTime")->load();
     float masterVol = apvts.getRawParameterValue("masterVolume")->load();
 
-    int  varMode    = static_cast<int>(apvts.getRawParameterValue("voiceVarMode")->load());
+    int varMode    = static_cast<int>(apvts.getRawParameterValue("voiceVarMode")->load());
     bool cycleOn    = apvts.getRawParameterValue("cycleMode")->load() > 0.5f;
 
     // 2. Configure Modules
