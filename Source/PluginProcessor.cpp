@@ -34,6 +34,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout Simple106AudioProcessor::cre
     params.push_back(std::make_unique<juce::AudioParameterFloat>("envMod", "Filter Env Mod", -1.0f, 1.0f, 0.5f));
 
     // Envelopes
+    params.push_back(std::make_unique<juce::AudioParameterChoice>("guiTheme", "Theme", juce::StringArray{"Classic Silver", "Midnight Blue", "Vintage Wood", "Stealth Dark"}, 0));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("ampAttack", "Amp Attack", 0.001f, 3.0f, 0.01f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("ampDecay", "Amp Decay", 0.001f, 3.0f, 0.3f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("ampSustain", "Amp Sustain", 0.0f, 1.0f, 0.7f));
