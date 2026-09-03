@@ -73,8 +73,8 @@ static const ChassisTheme chassisThemes[] = {
         juce::Colour(0xffdce4ef), juce::Colour(0xff8fa3b8),
         juce::Colour(0xff62788e),
         juce::Colour(0xffe8ecf2), juce::Colour(0xff2c3545),
-        juce::Colour(0xff14171a), juce::Colour(0xff14171a),
-        juce::Colour(0xfff0f4f8), juce::Colour(0xff14171a),
+        juce::Colour(0xff101418), juce::Colour(0xff101418),
+        juce::Colour(0xfff0f4f8), juce::Colour(0xff101418),
         juce::Colour(0xff0077c2), juce::Colour(0xffffffff)
     },
 
@@ -89,9 +89,9 @@ static const ChassisTheme chassisThemes[] = {
         juce::Colour(0xff3b3a38), juce::Colour(0xff141312),
         juce::Colour(0xffe8e8e8), juce::Colour(0xff9e9e9e),
         juce::Colour(0xffb99a5b),
-        juce::Colour(0xff2b2b2b), juce::Colour(0xffd9a441),   // dark combo bg + outline
-        juce::Colour(0xfff1e7d8), juce::Colour(0xfff1e7d8),   // cream arrow + text
-        juce::Colour(0xff2b2b2b), juce::Colour(0xfff1e7d8),   // dark popup bg + cream text
+        juce::Colour(0xff2b2b2b), juce::Colour(0xffd9a441),
+        juce::Colour(0xfff1e7d8), juce::Colour(0xfff1e7d8),
+        juce::Colour(0xff2b2b2b), juce::Colour(0xfff1e7d8),
         juce::Colour(0xffd9a441), juce::Colour(0xff1f1306)
     },
 
@@ -280,7 +280,7 @@ public:
 
         auto bounds = button.getLocalBounds();
         if (button.isToggleable())
-            bounds.removeFromLeft(12);
+            bounds.removeFromLeft(5);   // reduced inset so text sits more central
 
         g.drawFittedText(button.getButtonText(), bounds, juce::Justification::centred, 1);
     }

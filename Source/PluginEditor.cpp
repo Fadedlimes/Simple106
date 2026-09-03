@@ -184,9 +184,9 @@ buttonKeyboard(p.keyboardState)
 
     applyChassisTheme();
 
-    // ...... rest of constructor identical to original ......
+    // --- SYNTH / FX TABS ---
     auto setupTabBtn = [this](juce::TextButton& btn, int tabIdx) {
-        btn.setButtonText(tabIdx == 0 ? "SYNTH ENGINE" : "MASTER FX");
+        btn.setButtonText(tabIdx == 0 ? "SYNTH" : "FX");
         btn.setWantsKeyboardFocus(false);
         btn.onClick = [this, tabIdx]() {
             currentTab = tabIdx;
@@ -263,7 +263,7 @@ buttonKeyboard(p.keyboardState)
     setupControl(glideTime,  "glideTime",    "GLIDE");
     setupControl(masterVol,  "masterVolume", "VOLUME");
 
-    // Voice Variation Knobs — colours will come from LookAndFeel (Label::textColourId)
+    // Voice Variation Knobs — colours come from LookAndFeel (Label::textColourId)
     for (int i = 0; i < 6; ++i) {
         voiceKnobs[i].label.setFont(juce::FontOptions(11.0f).withStyle("Bold"));
         voiceKnobs[i].label.setJustificationType(juce::Justification::centredLeft);
@@ -636,14 +636,14 @@ void Simple106AudioProcessorEditor::renderBackgroundCache() {
 
     g.setColour(ct.headerText);
     g.setFont(juce::FontOptions(19.0f).withStyle("Bold"));
-    g.drawText("SIMPLE 106", 24, static_cast<int>(headerArea.getY()), 130, static_cast<int>(headerArea.getHeight()), juce::Justification::centredLeft);
+    g.drawText("SIMPLE 106", 24, static_cast<int>(headerArea.getY()), 90, static_cast<int>(headerArea.getHeight()), juce::Justification::centredLeft);
 
     // Header Labels (PATCH / THEME / COLOUR)
     g.setFont(juce::FontOptions(10.5f).withStyle("Bold"));
     g.setColour(ct.headerText.withAlpha(0.8f));
-    g.drawText("PATCH", 160, static_cast<int>(headerArea.getY()), 45, static_cast<int>(headerArea.getHeight()), juce::Justification::centredRight);
-    g.drawText("THEME", 410, static_cast<int>(headerArea.getY()), 45, static_cast<int>(headerArea.getHeight()), juce::Justification::centredRight);
-    g.drawText("COLOUR", 545, static_cast<int>(headerArea.getY()), 50, static_cast<int>(headerArea.getHeight()), juce::Justification::centredRight);
+    g.drawText("PATCH",  120, static_cast<int>(headerArea.getY()), 40, static_cast<int>(headerArea.getHeight()), juce::Justification::centredRight);
+    g.drawText("THEME",  380, static_cast<int>(headerArea.getY()), 35, static_cast<int>(headerArea.getHeight()), juce::Justification::centredRight);
+    g.drawText("COLOUR", 520, static_cast<int>(headerArea.getY()), 55, static_cast<int>(headerArea.getHeight()), juce::Justification::centredRight);
 
     auto drawSection = [&](juce::Rectangle<int> bounds, const juce::String& title, juce::Colour accent) {
         g.setColour(ct.sectionTitle.withAlpha(0.5f));
@@ -1030,17 +1030,16 @@ void Simple106AudioProcessorEditor::drawVoiceLED(juce::Graphics& g, float cx, fl
 void Simple106AudioProcessorEditor::resized() {
     renderBackgroundCache();
 
-    // --- HEADER CONTROLS ---
-    presetBox.setBounds(210, 8, 150, 26);
-    savePresetBtn.setBounds(364, 8, 44, 26);
-    initPresetBtn.setBounds(412, 8, 40, 26);
+    // --- HEADER CONTROLS (spread out to avoid label overlap) ---
+    presetBox.setBounds(160, 8, 120, 26);
+    savePresetBtn.setBounds(290, 8, 40, 26);
+    initPresetBtn.setBounds(340, 8, 40, 26);
 
-    // UI Theme combo (THEME) + LED COLOUR combo
-    chassisThemeBox.setBounds(462, 8, 82, 26);
-    themeBox.setBounds(568, 8, 82, 26);
+    chassisThemeBox.setBounds(425, 8, 90, 26);
+    themeBox.setBounds(590, 8, 90, 26);
 
-    synthTabBtn.setBounds(672, 8, 100, 26);
-    fxTabBtn.setBounds(782, 8, 115, 26);
+    synthTabBtn.setBounds(700, 8, 90, 26);
+    fxTabBtn.setBounds(800, 8, 95, 26);
 
     saveDialog.setBounds(getLocalBounds());
 
