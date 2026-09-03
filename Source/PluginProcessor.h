@@ -10,6 +10,7 @@
 #include "DSP/SequencerEngine.h"
 #include <vector>
 #include <memory>
+#include <array>
 
 class Simple106AudioProcessor : public juce::AudioProcessor,
 private juce::MidiInputCallback {
@@ -54,6 +55,7 @@ public:
     }
 
     std::vector<int> getChordNotes(int rootNote, int chordTypeIdx) const {
+        juce::ignoreUnused(chordTypeIdx);
         return voiceManager.getChordIntervals(rootNote);
     }
 
@@ -81,7 +83,6 @@ private:
 
     std::vector<std::unique_ptr<juce::MidiInput>> activeMidiInputs;
 
-    // Physical MIDI Key & Mode State Tracking
     std::array<bool, 128> physicalKeysHeld {};
     std::array<float, 128> physicalKeyVelocities {};
 
