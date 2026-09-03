@@ -141,11 +141,13 @@ public:
         accentPrimary = primary;
         accentGlow = glow;
         accentHighlight = highlight;
+        updateComboTextColour();
     }
 
     // Applies the full chassis theme and updates all related LookAndFeel colours.
     void setChassisTheme(const ChassisTheme& t) {
         theme = t;
+        isStealthDark = (juce::String(theme.name) == "Stealth Dark");
 
         setColour(juce::ComboBox::backgroundColourId, t.comboBg);
         setColour(juce::ComboBox::textColourId, t.comboText);
@@ -160,6 +162,11 @@ public:
         // so they automatically stay readable on all faceplates.
         setColour(juce::Label::textColourId, t.sectionTitle);
         setColour(juce::Slider::textBoxTextColourId, t.sectionTitle);
+
+        // If this is the dark stealth panel, the menu text follows the
+        // currently selected LED colour rather than a static theme colour.
+        if (isStealthDark)
+            updateComboTextColour();
     }
 
     const ChassisTheme& getChassisTheme() const noexcept { return theme; }
@@ -287,7 +294,7 @@ public:
 
     // ================================================================
     // ComboBox / Dropdown (only background & arrow; the ComboBox component
-    // itself draws the selected text using theme.comboText)
+    // itself draws the selected text using the colour IDs set for the theme)
     // ================================================================
     void drawComboBox(juce::Graphics& g, int width, int height, bool isButtonDown,
                       int buttonX, int buttonY, int buttonW, int buttonH,
@@ -314,7 +321,17 @@ public:
     }
 
 private:
+    void updateComboTextColour() {
+        if (isStealthDark) {
+            // The Stealth Dark theme makes the dropdown text follow the
+            // current LED colour selection instead of using a static theme colour.
+            setColour(juce::ComboBox::textColourId, accentPrimary);
+            setColour(juce::PopupMenu::textColourId, accentPrimary);
+        }
+    }
+
     ChassisTheme theme;
+    bool isStealthDark = false;
     juce::Colour accentPrimary { 0xffff2d55 };
     juce::Colour accentGlow { 0x60ff2d55 };
     juce::Colour accentHighlight { 0xffffa2b0 };
