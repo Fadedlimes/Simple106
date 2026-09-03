@@ -107,8 +107,12 @@ saveDialog([this](const juce::String& name) { performSave(name); }, [this]() { h
 buttonKeyboard(p.keyboardState)
 {
     setLookAndFeel(&silverLookAndFeel);
-    setSize(920, 640);
     setOpaque(true);
+
+    currentThemeIdx = juce::jlimit(0, 6, static_cast<int>(getSafeParamValue("ledTheme", 0.0f)));
+    currentArpIdx   = juce::jlimit(0, 4, static_cast<int>(getSafeParamValue("arpMode", 0.0f)));
+    currentChordIdx = juce::jlimit(0, 8, static_cast<int>(getSafeParamValue("chordType", 0.0f)));
+    currentPagesIdx = juce::jlimit(0, 3, static_cast<int>(getSafeParamValue("seqPages", 3.0f)));
 
     // --- HEADER PRESET & THEME CONTROLS ---
     refreshPresetList();
@@ -141,10 +145,8 @@ buttonKeyboard(p.keyboardState)
     };
     addAndMakeVisible(initPresetBtn);
 
-    // Colour Selector Setup
     themeBox.addItemList({"Red", "Cyan", "Green", "Amber", "Yellow", "Purple", "White"}, 1);
     themeBox.setWantsKeyboardFocus(false);
-    currentThemeIdx = static_cast<int>(audioProcessor.apvts.getRawParameterValue("ledTheme")->load());
     themeBox.setSelectedId(currentThemeIdx + 1, juce::dontSendNotification);
 
     auto applyTheme = [this]() {
@@ -155,7 +157,7 @@ buttonKeyboard(p.keyboardState)
     };
 
     themeBox.onChange = [this, applyTheme]() {
-        currentThemeIdx = themeBox.getSelectedItemIndex();
+        currentThemeIdx = juce::jlimit(0, 6, themeBox.getSelectedItemIndex());
         if (auto* param = audioProcessor.apvts.getParameter("ledTheme"))
             param->setValueNotifyingHost(static_cast<float>(currentThemeIdx) / 6.0f);
         applyTheme();
@@ -163,9 +165,8 @@ buttonKeyboard(p.keyboardState)
     addAndMakeVisible(themeBox);
     applyTheme();
 
-    // Tab buttons
     auto setupTabBtn = [this](juce::TextButton& btn, int tabIdx) {
-        btn.setButtonText(tabIdx == 0 ? "SYNTH" : "FX");
+        btn.setButtonText(tabIdx == 0 ? "SYNTH ENGINE" : "MASTER FX");
         btn.setWantsKeyboardFocus(false);
         btn.onClick = [this, tabIdx]() {
             currentTab = tabIdx;
@@ -258,30 +259,18 @@ buttonKeyboard(p.keyboardState)
         addAndMakeVisible(voiceKnobs[i].slider);
     }
 
-    auto setupBox = [this](juce::ComboBox& box, juce::Label& label, const juce::String& paramId, const juce::String& text, const juce::StringArray& items) {
-        label.setText(text, juce::dontSendNotification);
-        label.setFont(juce::FontOptions(10.5f).withStyle("Bold"));
-        label.setColour(juce::Label::textColourId, juce::Colour(0xff14171a));
-        label.setJustificationType(juce::Justification::centredLeft);
-        addAndMakeVisible(label);
-
-        box.addItemList(items, 1);
-        box.setWantsKeyboardFocus(false);
-        addAndMakeVisible(box);
-        boxAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
-            audioProcessor.apvts, paramId, box));
-    };
-
     setupBox(voiceVarModeBox, voiceVarLabel, "voiceVarMode", "VOICE VAR", {"PANNING", "TUNING"});
     voiceVarModeBox.onChange = [this]() { updateVoiceKnobAttachments(); };
     updateVoiceKnobAttachments();
 
-    // Voice Cycling Button (with ButtonAttachment)
+    // Voice Cycling Button
     cycleBtn.setClickingTogglesState(true);
     cycleBtn.setWantsKeyboardFocus(false);
     addAndMakeVisible(cycleBtn);
-    btnAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
-        audioProcessor.apvts, "cycleMode", cycleBtn));
+    if (audioProcessor.apvts.getParameter("cycleMode") != nullptr) {
+        btnAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+            audioProcessor.apvts, "cycleMode", cycleBtn));
+    }
 
     const juce::StringArray fullTargets = {
         "None", "LPF Cutoff", "LPF Reso", "HPF Cutoff", "Env Mod",
@@ -297,7 +286,6 @@ buttonKeyboard(p.keyboardState)
     setupBox(lfo3ShapeBox, lfo3ShapeLabel, "lfo3Shape", "SHAPE", {"Sine", "Triangle", "S&H"});
     setupBox(lfo3TargetBox, lfo3TargetLabel, "lfo3Target", "TARGET", fullTargets);
 
-    // Clean Play Mode Choices: Poly, Mono, Unison
     setupBox(playModeBox, playModeLabel, "playMode", "PLAY MODE", {"Poly", "Mono", "Unison"});
 
     // --- MASTER FX CONTROLS ---
@@ -317,8 +305,10 @@ buttonKeyboard(p.keyboardState)
 
     delayPingPongBtn.setWantsKeyboardFocus(false);
     addAndMakeVisible(delayPingPongBtn);
-    btnAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
-        audioProcessor.apvts, "delayPingPong", delayPingPongBtn));
+    if (audioProcessor.apvts.getParameter("delayPingPong") != nullptr) {
+        btnAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+            audioProcessor.apvts, "delayPingPong", delayPingPongBtn));
+    }
 
     setupControl(reverbSize, "reverbSize", "ROOM SIZE");
     setupControl(reverbDamp, "reverbDamp", "DAMPING");
@@ -357,14 +347,14 @@ buttonKeyboard(p.keyboardState)
     };
     addAndMakeVisible(seqClearBtn);
 
-    // Arp Module (with ButtonAttachment)
+    // Arp Module
     arpToggleBtn.setClickingTogglesState(true);
     arpToggleBtn.setWantsKeyboardFocus(false);
     addAndMakeVisible(arpToggleBtn);
-    btnAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
-        audioProcessor.apvts, "arpEnable", arpToggleBtn));
-
-    currentArpIdx = static_cast<int>(audioProcessor.apvts.getRawParameterValue("arpMode")->load());
+    if (audioProcessor.apvts.getParameter("arpEnable") != nullptr) {
+        btnAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+            audioProcessor.apvts, "arpEnable", arpToggleBtn));
+    }
 
     arpPrevBtn.setWantsKeyboardFocus(false);
     arpPrevBtn.onClick = [this]() {
@@ -384,14 +374,14 @@ buttonKeyboard(p.keyboardState)
     };
     addAndMakeVisible(arpNextBtn);
 
-    // Chord Module (with ButtonAttachment)
+    // Chord Module
     chordToggleBtn.setClickingTogglesState(true);
     chordToggleBtn.setWantsKeyboardFocus(false);
     addAndMakeVisible(chordToggleBtn);
-    btnAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
-        audioProcessor.apvts, "chordEnable", chordToggleBtn));
-
-    currentChordIdx = static_cast<int>(audioProcessor.apvts.getRawParameterValue("chordType")->load());
+    if (audioProcessor.apvts.getParameter("chordEnable") != nullptr) {
+        btnAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+            audioProcessor.apvts, "chordEnable", chordToggleBtn));
+    }
 
     chordPrevBtn.setWantsKeyboardFocus(false);
     chordPrevBtn.onClick = [this]() {
@@ -412,7 +402,6 @@ buttonKeyboard(p.keyboardState)
     addAndMakeVisible(chordNextBtn);
 
     // Steps Module
-    currentPagesIdx = static_cast<int>(audioProcessor.apvts.getRawParameterValue("seqPages")->load());
     audioProcessor.sequencer.setNumPages(currentPagesIdx + 1);
 
     stepsPrevBtn.setWantsKeyboardFocus(false);
@@ -440,18 +429,22 @@ buttonKeyboard(p.keyboardState)
     pagePrevBtn.setWantsKeyboardFocus(false);
     pagePrevBtn.onClick = [this]() {
         int maxPages = audioProcessor.sequencer.getNumPages();
-        currentSeqPage = (currentSeqPage + maxPages - 1) % maxPages;
-        audioProcessor.sequencer.setRecordStep(currentSeqPage * 16);
-        repaint(14, 470, 892, 46);
+        if (maxPages > 0) {
+            currentSeqPage = (currentSeqPage + maxPages - 1) % maxPages;
+            audioProcessor.sequencer.setRecordStep(currentSeqPage * 16);
+            repaint(14, 470, 892, 46);
+        }
     };
     addAndMakeVisible(pagePrevBtn);
 
     pageNextBtn.setWantsKeyboardFocus(false);
     pageNextBtn.onClick = [this]() {
         int maxPages = audioProcessor.sequencer.getNumPages();
-        currentSeqPage = (currentSeqPage + 1) % maxPages;
-        audioProcessor.sequencer.setRecordStep(currentSeqPage * 16);
-        repaint(14, 470, 892, 46);
+        if (maxPages > 0) {
+            currentSeqPage = (currentSeqPage + 1) % maxPages;
+            audioProcessor.sequencer.setRecordStep(currentSeqPage * 16);
+            repaint(14, 470, 892, 46);
+        }
     };
     addAndMakeVisible(pageNextBtn);
 
@@ -462,6 +455,9 @@ buttonKeyboard(p.keyboardState)
 
     setWantsKeyboardFocus(true);
     addKeyListener(this);
+
+    // Window Bounds & Real-Time Timer
+    setSize(920, 640);
     startTimerHz(60);
 }
 
@@ -471,13 +467,19 @@ Simple106AudioProcessorEditor::~Simple106AudioProcessorEditor() {
     setLookAndFeel(nullptr);
 }
 
+float Simple106AudioProcessorEditor::getSafeParamValue(const juce::String& paramId, float fallback) const {
+    if (auto* p = audioProcessor.apvts.getRawParameterValue(paramId))
+        return p->load();
+    return fallback;
+}
+
 void Simple106AudioProcessorEditor::updateUIFromParameters() {
-    currentChordIdx = static_cast<int>(audioProcessor.apvts.getRawParameterValue("chordType")->load());
-    currentArpIdx   = static_cast<int>(audioProcessor.apvts.getRawParameterValue("arpMode")->load());
-    currentPagesIdx = static_cast<int>(audioProcessor.apvts.getRawParameterValue("seqPages")->load());
+    currentChordIdx = juce::jlimit(0, 8, static_cast<int>(getSafeParamValue("chordType", 0.0f)));
+    currentArpIdx   = juce::jlimit(0, 4, static_cast<int>(getSafeParamValue("arpMode", 0.0f)));
+    currentPagesIdx = juce::jlimit(0, 3, static_cast<int>(getSafeParamValue("seqPages", 3.0f)));
     audioProcessor.sequencer.setNumPages(currentPagesIdx + 1);
 
-    int varMode = static_cast<int>(audioProcessor.apvts.getRawParameterValue("voiceVarMode")->load());
+    int varMode = juce::jlimit(0, 1, static_cast<int>(getSafeParamValue("voiceVarMode", 0.0f)));
     voiceVarModeBox.setSelectedId(varMode + 1, juce::dontSendNotification);
 
     updateVoiceKnobAttachments();
@@ -518,7 +520,6 @@ void Simple106AudioProcessorEditor::performSave(const juce::String& rawName) {
 void Simple106AudioProcessorEditor::refreshPresetList() {
     presetBox.clear(juce::dontSendNotification);
 
-    // 1. Factory Presets
     const char* factoryNames[] = {
         "01. Init Poly", "02. Juno Warm Pad", "03. Poly Drift Keys", "04. Supersaw Hoover",
         "05. Acid 106 Lead", "06. 80s Arp Dream", "07. MonoPoly Drift", "08. Space Pluck"
@@ -529,7 +530,6 @@ void Simple106AudioProcessorEditor::refreshPresetList() {
 
     presetBox.addSeparator();
 
-    // 2. User Presets
     auto dir = audioProcessor.getPresetsDirectory();
     auto userFiles = dir.findChildFiles(juce::File::findFiles, false, "*.s106");
     int userIdx = 9;
@@ -540,6 +540,8 @@ void Simple106AudioProcessorEditor::refreshPresetList() {
 }
 
 void Simple106AudioProcessorEditor::renderBackgroundCache() {
+    if (getWidth() <= 0 || getHeight() <= 0) return;
+
     backgroundCache = juce::Image(juce::Image::RGB, getWidth(), getHeight(), true);
     juce::Graphics g(backgroundCache);
 
@@ -567,9 +569,9 @@ void Simple106AudioProcessorEditor::renderBackgroundCache() {
         g.drawLine(cx - 2.2f, cy, cx + 2.2f, cy, 1.0f);
     };
     drawScrew(12.0f, 12.0f);
-    drawScrew(getWidth() - 12.0f, 12.0f);
-    drawScrew(12.0f, getHeight() - 12.0f);
-    drawScrew(getWidth() - 12.0f, getHeight() - 12.0f);
+    drawScrew(static_cast<float>(getWidth()) - 12.0f, 12.0f);
+    drawScrew(12.0f, static_cast<float>(getHeight()) - 12.0f);
+    drawScrew(static_cast<float>(getWidth()) - 12.0f, static_cast<float>(getHeight()) - 12.0f);
 
     // Header Area
     auto headerArea = juce::Rectangle<float>(faceplate.getX(), faceplate.getY(), faceplate.getWidth(), 42.0f);
@@ -621,7 +623,7 @@ void Simple106AudioProcessorEditor::renderBackgroundCache() {
         drawSection({614, 56, 290, 407}, "LUSH DIGITAL REVERB", juce::Colour(0xff27ae60));
     }
 
-    // --- SEQUENCER TRAY BACKGROUND ---
+    // Sequencer Control Bar Tray
     auto seqBar = juce::Rectangle<int>(14, 472, 892, 42);
     g.setColour(juce::Colour(0xff1a1d24));
     g.fillRoundedRectangle(seqBar.toFloat(), 4.0f);
@@ -637,13 +639,13 @@ void Simple106AudioProcessorEditor::renderBackgroundCache() {
 
     g.setColour(juce::Colour(0xff98a2b3));
     g.setFont(juce::FontOptions(9.5f).withStyle("Bold"));
-    g.drawText("STEPS", 574, 479, 36, 28, juce::Justification::centredRight);
-    g.drawText("PAGE", 730, 479, 34, 28, juce::Justification::centredRight);
+    g.drawText("STEPS", 552, 479, 44, 26, juce::Justification::centredRight);
+    g.drawText("PAGE", 676, 479, 38, 26, juce::Justification::centredRight);
 
-    drawScreenBox({274.0f, 479.0f, 60.0f, 28.0f}); // Arp
-    drawScreenBox({438.0f, 479.0f, 74.0f, 28.0f}); // Chord
-    drawScreenBox({632.0f, 479.0f, 44.0f, 28.0f}); // Steps
-    drawScreenBox({786.0f, 479.0f, 66.0f, 28.0f}); // Page
+    drawScreenBox({294.0f, 479.0f, 58.0f, 26.0f}); // Arp
+    drawScreenBox({460.0f, 479.0f, 68.0f, 26.0f}); // Chord
+    drawScreenBox({616.0f, 479.0f, 36.0f, 26.0f}); // Steps
+    drawScreenBox({734.0f, 479.0f, 54.0f, 26.0f}); // Page
 }
 
 void Simple106AudioProcessorEditor::focusLost(FocusChangeType) {
@@ -664,7 +666,6 @@ void Simple106AudioProcessorEditor::timerCallback() {
                                      currentSeqPage
     );
 
-    // Real-Time Active Key Illumination
     std::array<bool, 25> activeKeys { false };
     int currentStart = 48 + buttonKeyboard.getOctaveOffset();
 
@@ -675,8 +676,8 @@ void Simple106AudioProcessorEditor::timerCallback() {
         }
     }
 
-    bool chordOn = audioProcessor.apvts.getRawParameterValue("chordEnable")->load() > 0.5f;
-    int chordIdx = static_cast<int>(audioProcessor.apvts.getRawParameterValue("chordType")->load());
+    bool chordOn = getSafeParamValue("chordEnable", 0.0f) > 0.5f;
+    int chordIdx = juce::jlimit(0, 8, static_cast<int>(getSafeParamValue("chordType", 0.0f)));
     if (chordOn) {
         for (int i = 0; i < 25; ++i) {
             int noteNum = currentStart + i;
@@ -694,7 +695,6 @@ void Simple106AudioProcessorEditor::timerCallback() {
 
     buttonKeyboard.setActiveNotes(activeKeys);
 
-    // QWERTY Key State Synchronizer
     if (!saveDialog.isVisible()) {
         for (size_t i = 0; i < NUM_QWERTY_KEYS; ++i) {
             bool isDown = juce::KeyPress::isKeyCurrentlyDown(qwertyMappings[i].keyCode);
@@ -728,8 +728,10 @@ void Simple106AudioProcessorEditor::updateVoiceKnobAttachments() {
             };
         }
 
-        voiceAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-            audioProcessor.apvts, paramId, voiceKnobs[i].slider));
+        if (audioProcessor.apvts.getParameter(paramId) != nullptr) {
+            voiceAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+                audioProcessor.apvts, paramId, voiceKnobs[i].slider));
+        }
         voiceKnobs[i].slider.updateText();
     }
 }
@@ -750,8 +752,27 @@ void Simple106AudioProcessorEditor::setupControl(LabeledSlider& ctrl, const juce
     ctrl.slider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(0x00000000));
     addAndMakeVisible(ctrl.slider);
 
-    sliderAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        audioProcessor.apvts, paramId, ctrl.slider));
+    if (audioProcessor.apvts.getParameter(paramId) != nullptr) {
+        sliderAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+            audioProcessor.apvts, paramId, ctrl.slider));
+    }
+}
+
+void Simple106AudioProcessorEditor::setupBox(juce::ComboBox& box, juce::Label& label, const juce::String& paramId, const juce::String& text, const juce::StringArray& items) {
+    label.setText(text, juce::dontSendNotification);
+    label.setFont(juce::FontOptions(10.5f).withStyle("Bold"));
+    label.setColour(juce::Label::textColourId, juce::Colour(0xff14171a));
+    label.setJustificationType(juce::Justification::centredLeft);
+    addAndMakeVisible(label);
+
+    box.addItemList(items, 1);
+    box.setWantsKeyboardFocus(false);
+    addAndMakeVisible(box);
+
+    if (audioProcessor.apvts.getParameter(paramId) != nullptr) {
+        boxAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
+            audioProcessor.apvts, paramId, box));
+    }
 }
 
 void Simple106AudioProcessorEditor::parentHierarchyChanged() {
@@ -824,18 +845,18 @@ void Simple106AudioProcessorEditor::paint(juce::Graphics& g) {
 
     // Dynamic 14-Segment Themed LED Screens
     const char* arpNames[] = { "UP", "DOWN", "U-D", "RAND", "PLAY" };
-    drawSegmentedString(g, 280.0f, 483.0f, 12.0f, 20.0f, arpNames[currentArpIdx]);
+    drawSegmentedString(g, 298.0f, 482.0f, 10.0f, 18.0f, arpNames[juce::jlimit(0, 4, currentArpIdx)]);
 
     const char* chordNames[] = { "MAJ", "MIN", "MAJ7", "MIN7", "DOM7", "SUS4", "DIM", "OCT", "5TH" };
-    drawSegmentedString(g, 446.0f, 483.0f, 13.0f, 20.0f, chordNames[currentChordIdx]);
+    drawSegmentedString(g, 464.0f, 482.0f, 11.0f, 18.0f, chordNames[juce::jlimit(0, 8, currentChordIdx)]);
 
     const char* stepNames[] = { "16", "32", "48", "64" };
-    drawSegmentedString(g, 638.0f, 483.0f, 13.0f, 20.0f, stepNames[currentPagesIdx]);
+    drawSegmentedString(g, 622.0f, 482.0f, 11.0f, 18.0f, stepNames[juce::jlimit(0, 3, currentPagesIdx)]);
 
     juce::String pageStr = "PG-" + juce::String(currentSeqPage + 1);
-    drawSegmentedString(g, 792.0f, 483.0f, 13.0f, 20.0f, pageStr);
+    drawSegmentedString(g, 738.0f, 482.0f, 11.0f, 18.0f, pageStr);
 
-    // Status LEDs on Buttons (Themed)
+    // Status LEDs on Toggle Buttons
     auto theme = getActiveTheme();
     auto drawBtnLED = [&](juce::Rectangle<int> b, bool on) {
         float cx = static_cast<float>(b.getX()) + 7.0f;
@@ -964,8 +985,8 @@ void Simple106AudioProcessorEditor::resized() {
 
     themeBox.setBounds(565, 8, 80, 26);
 
-    synthTabBtn.setBounds(660, 8, 115, 26);
-    fxTabBtn.setBounds(780, 8, 105, 26);
+    synthTabBtn.setBounds(656, 8, 120, 26);
+    fxTabBtn.setBounds(782, 8, 115, 26);
 
     saveDialog.setBounds(getLocalBounds());
 
@@ -1098,29 +1119,29 @@ void Simple106AudioProcessorEditor::resized() {
         layoutKnob(reverbMix, 780, 90, 65, 70);
     }
 
-    // --- SEQUENCER & PERFORMANCE CONTROL BAR ---
-    seqPlayBtn.setBounds(22, 479, 44, 28);
-    seqRecBtn.setBounds(68, 479, 44, 28);
-    seqRestBtn.setBounds(114, 479, 42, 28);
-    seqClearBtn.setBounds(158, 479, 38, 28);
+    // Sequencer & Performance Bar Layout (Optimized Spacing & Padding)
+    seqPlayBtn.setBounds(20, 478, 48, 28);
+    seqRecBtn.setBounds(72, 478, 48, 28);
+    seqRestBtn.setBounds(124, 478, 48, 28);
+    seqClearBtn.setBounds(176, 478, 44, 28);
 
-    // Arp Module (x: 208..330)
-    arpToggleBtn.setBounds(212, 479, 46, 28);
-    arpPrevBtn.setBounds(260, 480, 16, 26);
-    arpNextBtn.setBounds(332, 480, 16, 26);
+    // Arp Module (x: 226..372)
+    arpToggleBtn.setBounds(226, 478, 48, 28);
+    arpPrevBtn.setBounds(276, 479, 16, 26);
+    arpNextBtn.setBounds(354, 479, 16, 26);
 
-    // Chord Module (x: 360..500)
-    chordToggleBtn.setBounds(364, 479, 56, 28);
-    chordPrevBtn.setBounds(422, 480, 16, 26);
-    chordNextBtn.setBounds(510, 480, 16, 26);
+    // Chord Module (x: 376..548)
+    chordToggleBtn.setBounds(376, 478, 62, 28);
+    chordPrevBtn.setBounds(442, 479, 16, 26);
+    chordNextBtn.setBounds(530, 479, 16, 26);
 
-    // Steps Module (x: 540..660)
-    stepsPrevBtn.setBounds(614, 480, 16, 26);
-    stepsNextBtn.setBounds(678, 480, 16, 26);
+    // Steps Module (x: 552..672)
+    stepsPrevBtn.setBounds(598, 479, 16, 26);
+    stepsNextBtn.setBounds(654, 479, 16, 26);
 
-    // Page Module (x: 690..840)
-    pagePrevBtn.setBounds(768, 480, 16, 26);
-    pageNextBtn.setBounds(854, 480, 16, 26);
+    // Page Module (x: 676..810)
+    pagePrevBtn.setBounds(716, 479, 16, 26);
+    pageNextBtn.setBounds(790, 479, 16, 26);
 
     buttonKeyboard.setBounds(14, 518, 892, 114);
 }

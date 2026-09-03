@@ -5,6 +5,8 @@
 #include "UI/SilverLookAndFeel.h"
 #include "UI/VintageButtonKeyboard.h"
 #include <array>
+#include <vector>
+#include <memory>
 #include <functional>
 
 struct LEDTheme {
@@ -66,7 +68,10 @@ public juce::KeyListener,
         // Theme Palette
         int currentThemeIdx = 0;
         static const LEDTheme ledThemes[7];
-        const LEDTheme& getActiveTheme() const { return ledThemes[currentThemeIdx]; }
+        const LEDTheme& getActiveTheme() const {
+            int idx = juce::jlimit(0, 6, currentThemeIdx);
+            return ledThemes[idx];
+        }
 
         // Header Controls
         juce::ComboBox presetBox;
@@ -158,10 +163,13 @@ public juce::KeyListener,
         std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>> btnAttachments;
 
         void setupControl(LabeledSlider& ctrl, const juce::String& paramId, const juce::String& labelText);
+        void setupBox(juce::ComboBox& box, juce::Label& label, const juce::String& paramId, const juce::String& text, const juce::StringArray& items);
         void updateVoiceKnobAttachments();
         void drawVoiceLED(juce::Graphics& g, float cx, float cy, bool on);
         void drawSegmentedString(juce::Graphics& g, float x, float y, float w, float h, const juce::String& text);
         void draw14SegmentChar(juce::Graphics& g, float x, float y, float w, float h, char c);
+
+        float getSafeParamValue(const juce::String& paramId, float fallback = 0.0f) const;
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Simple106AudioProcessorEditor)
     };
