@@ -163,6 +163,25 @@ public:
         setColour(juce::Label::textColourId, t.sectionTitle);
         setColour(juce::Slider::textBoxTextColourId, t.sectionTitle);
 
+        // --------------------------------------------------------------
+        // Explicit per‑theme dropdown text colours.
+        // These overrides guarantee each theme keeps an independent,
+        // readable setting – especially "Midnight Blue", whose menus have
+        // a light background and therefore need dark text.
+        // --------------------------------------------------------------
+        const juce::String themeName(theme.name);
+
+        if (themeName == "Midnight Blue")
+        {
+            setColour(juce::ComboBox::textColourId,  juce::Colour(0xff101418));
+            setColour(juce::PopupMenu::textColourId, juce::Colour(0xff101418));
+        }
+        else if (themeName == "Classic Silver" || themeName == "Vintage Wood")
+        {
+            setColour(juce::ComboBox::textColourId,  juce::Colour(0xfff0f2f5));
+            setColour(juce::PopupMenu::textColourId, juce::Colour(0xfff0f2f5));
+        }
+
         // If this is the dark stealth panel, the menu text follows the
         // currently selected LED colour rather than a static theme colour.
         if (isStealthDark)
