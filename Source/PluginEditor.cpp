@@ -472,6 +472,8 @@ buttonKeyboard(p.keyboardState)
     // Modal Save Dialog
     addChildComponent(saveDialog);
 
+    applyValueTextColours(); // Ensures all knob values use the correct theme text colour
+
     setWantsKeyboardFocus(true);
     addKeyListener(this);
 
@@ -514,6 +516,7 @@ void Simple106AudioProcessorEditor::applyChassisTheme() {
     const auto& ct = chassisThemes[juce::jlimit(0, NUM_CHASSIS_THEMES - 1, currentChassisThemeIdx)];
     silverLookAndFeel.setChassisTheme(ct);
     applyComboTextColours();
+    applyValueTextColours();
     renderBackgroundCache();
     resized(); // Lay out controls after the theme colors change (also re-renders background)
     repaint();
@@ -538,6 +541,34 @@ void Simple106AudioProcessorEditor::applyComboTextColours() {
     setCol(lfo3TargetBox);
     setCol(chorusModeBox);
     setCol(delaySyncBox);
+}
+
+void Simple106AudioProcessorEditor::applyValueTextColours() {
+    auto valueText = silverLookAndFeel.getChassisTheme().sectionTitle;
+
+    auto setVal = [valueText](juce::Slider& s) {
+        s.setColour(juce::Slider::textBoxTextColourId, valueText);
+    };
+
+    auto setLabeled = [&setVal](LabeledSlider& c) { setVal(c.slider); };
+
+    setLabeled(dco1Morph);   setLabeled(dco1PWM);   setLabeled(dco1Level);
+    setLabeled(dco2Morph);   setLabeled(dco2PWM);   setLabeled(dco2Level);
+    setLabeled(dco2Semi);    setLabeled(dco2Cents);
+    setLabeled(subLevel);    setLabeled(noiseLevel);
+    setLabeled(hpfCutoff);   setLabeled(lpfCutoff); setLabeled(lpfRes);  setLabeled(envMod);
+    setLabeled(filtA);       setLabeled(filtD);     setLabeled(filtS);   setLabeled(filtR);
+    setLabeled(ampA);        setLabeled(ampD);      setLabeled(ampS);    setLabeled(ampR);
+    setLabeled(lfo1Rate);    setLabeled(lfo1ToFilt); setLabeled(lfo1ToPitch);
+    setLabeled(lfo2Rate);    setLabeled(lfo2Amount);
+    setLabeled(lfo3Rate);    setLabeled(lfo3Amount);
+    setLabeled(glideTime);   setLabeled(masterVol);
+
+    setLabeled(delayTime);   setLabeled(delayFb);   setLabeled(delayDamp); setLabeled(delayMix);
+    setLabeled(reverbSize);  setLabeled(reverbDamp); setLabeled(reverbMix);
+
+    for (int i = 0; i < 6; ++i)
+        setVal(voiceKnobs[i].slider);
 }
 
 void Simple106AudioProcessorEditor::showSaveDialog() {
@@ -602,20 +633,17 @@ void Simple106AudioProcessorEditor::renderBackgroundCache() {
     const ChassisTheme& ct = getChassisTheme();
     auto fullBounds = getLocalBounds().toFloat();
 
-    // Chassis Outer Frame
     g.setColour(ct.panelOutline);
     g.fillRoundedRectangle(fullBounds, 8.0f);
     g.setColour(ct.faceplateBottom.interpolatedWith(ct.panelOutline, 0.3f));
     g.drawRoundedRectangle(fullBounds.reduced(0.5f), 8.0f, 1.5f);
 
-    // Inner Faceplate Panel
     auto faceplate = fullBounds.reduced(6.0f);
     juce::ColourGradient plateGrad(ct.faceplateTop, faceplate.getX(), faceplate.getY(),
                                    ct.faceplateBottom, faceplate.getRight(), faceplate.getBottom(), false);
     g.setGradientFill(plateGrad);
     g.fillRoundedRectangle(faceplate, 4.0f);
 
-    // Wooden cheek borders for Vintage Wood theme
     if (currentChassisThemeIdx == 2) { // Vintage Wood
         juce::ColourGradient woodGradL(juce::Colour(0xff7a5c3e), faceplate.getX(), faceplate.getY(),
                                        juce::Colour(0xff3c2a1a), faceplate.getX() + 12.0f, faceplate.getY(), false);
@@ -628,7 +656,6 @@ void Simple106AudioProcessorEditor::renderBackgroundCache() {
         g.fillRoundedRectangle(faceplate.withLeft(faceplate.getRight() - 12.0f), 4.0f);
     }
 
-    // Horizontal blue pinstripes for Midnight Blue
     if (currentChassisThemeIdx == 1) { // Midnight Blue
         g.setColour(juce::Colour(0x6600bfff));
         for (float y = 70.0f; y < faceplate.getBottom(); y += 28.0f) {
@@ -636,7 +663,6 @@ void Simple106AudioProcessorEditor::renderBackgroundCache() {
         }
     }
 
-    // Corner Screws
     auto drawScrew = [&](float cx, float cy) {
         g.setColour(juce::Colour(0xff717986));
         g.fillEllipse(cx - 3.5f, cy - 3.5f, 7.0f, 7.0f);
@@ -649,7 +675,6 @@ void Simple106AudioProcessorEditor::renderBackgroundCache() {
     drawScrew(12.0f, static_cast<float>(getHeight()) - 12.0f);
     drawScrew(static_cast<float>(getWidth()) - 12.0f, static_cast<float>(getHeight()) - 12.0f);
 
-    // Header Area
     auto headerArea = juce::Rectangle<float>(faceplate.getX(), faceplate.getY(), faceplate.getWidth(), 42.0f);
     g.setColour(ct.headerBg);
     g.fillRect(headerArea);
@@ -661,7 +686,6 @@ void Simple106AudioProcessorEditor::renderBackgroundCache() {
     g.setFont(juce::FontOptions(19.0f).withStyle("Bold"));
     g.drawText("SIMPLE 106", 24, static_cast<int>(headerArea.getY()), 90, static_cast<int>(headerArea.getHeight()), juce::Justification::centredLeft);
 
-    // Header Labels (PATCH / THEME / COLOUR)
     g.setFont(juce::FontOptions(10.5f).withStyle("Bold"));
     g.setColour(ct.headerText.withAlpha(0.8f));
     g.drawText("PATCH",  120, static_cast<int>(headerArea.getY()), 40, static_cast<int>(headerArea.getHeight()), juce::Justification::centredRight);
@@ -690,7 +714,6 @@ void Simple106AudioProcessorEditor::renderBackgroundCache() {
         drawSection({222, 258, 425, 205}, "MODULATION (LFO 1, 2 & 3)", juce::Colour(0xffd35400));
         drawSection({655, 258, 250, 205}, "VOICE VARIATION MATRIX", juce::Colour(0xffc0392b));
 
-        // Sub-column dividers
         g.setColour(ct.sectionTitle.withAlpha(0.4f));
         g.drawVerticalLine(364, 280.0f, 452.0f);
         g.drawVerticalLine(502, 280.0f, 452.0f);
@@ -700,7 +723,6 @@ void Simple106AudioProcessorEditor::renderBackgroundCache() {
         drawSection({614, 56, 290, 407}, "LUSH DIGITAL REVERB", juce::Colour(0xff27ae60));
     }
 
-    // Sequencer Control Bar Tray
     auto seqBar = juce::Rectangle<int>(14, 472, 892, 42);
     g.setColour(juce::Colour(0xff1a1d24).interpolatedWith(ct.headerBg, 0.55f));
     g.fillRoundedRectangle(seqBar.toFloat(), 4.0f);
@@ -823,7 +845,6 @@ void Simple106AudioProcessorEditor::setupControl(LabeledSlider& ctrl, const juce
     ctrl.slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 58, 16);
     ctrl.slider.setWantsKeyboardFocus(false);
 
-    // Text colours come from the theme via SilverLookAndFeel
     ctrl.slider.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0x00000000));
     ctrl.slider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(0x00000000));
     addAndMakeVisible(ctrl.slider);
@@ -918,7 +939,6 @@ void Simple106AudioProcessorEditor::paint(juce::Graphics& g) {
         }
     }
 
-    // Dynamic 14-Segment Themed LED Screens
     const char* arpNames[] = { "UP", "DOWN", "U-D", "RAND", "PLAY" };
     drawSegmentedString(g, 298.0f, 482.0f, 10.0f, 18.0f, arpNames[juce::jlimit(0, 4, currentArpIdx)]);
 
@@ -931,7 +951,6 @@ void Simple106AudioProcessorEditor::paint(juce::Graphics& g) {
     juce::String pageStr = "PG-" + juce::String(currentSeqPage + 1);
     drawSegmentedString(g, 738.0f, 482.0f, 11.0f, 18.0f, pageStr);
 
-    // Status LEDs on Toggle Buttons
     auto theme = getActiveTheme();
     auto drawBtnLED = [&](juce::Rectangle<int> b, bool on) {
         float cx = static_cast<float>(b.getX()) + 7.0f;

@@ -74,6 +74,7 @@ private:
     }
     void applyChassisTheme();
     void applyComboTextColours();
+    void applyValueTextColours();
 
     // LED Theme (Independent COLOUR selector)
     int currentThemeIdx = 0;
