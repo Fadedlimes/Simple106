@@ -285,10 +285,37 @@ public:
         g.drawFittedText(button.getButtonText(), bounds, juce::Justification::centred, 1);
     }
 
-    // ComboBox text, outline, arrow and popup rendering are handled by the
-    // standard LookAndFeel_V4 implementation, automatically using the colour
-    // IDs that setChassisTheme() configures.  This prevents double text
-    // drawing and provides high contrast with the active chassis theme.
+    // ================================================================
+    // ComboBox / Dropdown (completely custom, ensures readable text)
+    // ================================================================
+    void drawComboBox(juce::Graphics& g, int width, int height, bool isButtonDown,
+                      int buttonX, int buttonY, int buttonW, int buttonH,
+                      juce::ComboBox& box) override {
+        juce::ignoreUnused(isButtonDown, buttonX, buttonY, buttonW, buttonH);
+
+        auto bounds = juce::Rectangle<float>(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height));
+
+        g.setColour(theme.comboBg);
+        g.fillRoundedRectangle(bounds, 3.0f);
+        g.setColour(theme.comboOutline);
+        g.drawRoundedRectangle(bounds, 3.0f, 1.2f);
+
+        auto textRect = bounds.reduced(4.0f, 0.0f).withWidth(bounds.getWidth() - 22.0f);
+        g.setColour(theme.comboText);
+        g.setFont(juce::FontOptions(12.0f).withStyle("Bold"));
+        g.drawFittedText(box.getText(), textRect.toNearestInt(), juce::Justification::centredLeft, 1, 0.9f);
+
+        auto arrowX = static_cast<float>(width) - 16.0f;
+        auto arrowY = bounds.getCentreY();
+        juce::Path arrow;
+        arrow.startNewSubPath(arrowX - 3.0f, arrowY - 2.0f);
+        arrow.lineTo(arrowX + 3.0f, arrowY - 2.0f);
+        arrow.lineTo(arrowX, arrowY + 2.0f);
+        arrow.closeSubPath();
+
+        g.setColour(theme.comboArrow);
+        g.fillPath(arrow);
+    }
 
 private:
     ChassisTheme theme;
