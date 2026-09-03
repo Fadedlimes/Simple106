@@ -286,7 +286,8 @@ public:
     }
 
     // ================================================================
-    // ComboBox / Dropdown (completely custom, ensures readable text)
+    // ComboBox / Dropdown (only background & arrow; the ComboBox component
+    // itself draws the selected text using theme.comboText)
     // ================================================================
     void drawComboBox(juce::Graphics& g, int width, int height, bool isButtonDown,
                       int buttonX, int buttonY, int buttonW, int buttonH,
@@ -299,11 +300,6 @@ public:
         g.fillRoundedRectangle(bounds, 3.0f);
         g.setColour(theme.comboOutline);
         g.drawRoundedRectangle(bounds, 3.0f, 1.2f);
-
-        auto textRect = bounds.reduced(4.0f, 0.0f).withWidth(bounds.getWidth() - 22.0f);
-        g.setColour(theme.comboText);
-        g.setFont(juce::FontOptions(12.0f).withStyle("Bold"));
-        g.drawFittedText(box.getText(), textRect.toNearestInt(), juce::Justification::centredLeft, 1, 0.9f);
 
         auto arrowX = static_cast<float>(width) - 16.0f;
         auto arrowY = bounds.getCentreY();
