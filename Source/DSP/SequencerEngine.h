@@ -2,6 +2,7 @@
 #include <array>
 #include <algorithm>
 #include <cstdlib>
+#include <cstddef>
 
 class SequencerEngine {
 public:
@@ -23,13 +24,13 @@ public:
     }
 
     void setSampleRate(double sr) { sampleRate = sr; }
-    void setTempo(float bpm) { currentBpm = std::clamp(bpm, 30.0f, 300.0f); }
+    void setTempo(float bpm) { currentBpm = clampValue(bpm, 30.0f, 300.0f); }
 
     // --- CRASH-PROOF ZERO-ALLOCATION ARPEGGIATOR (32-NOTE CAPACITY) ---
     static constexpr int MAX_ARP_NOTES = 32;
 
     void setArpMode(int mode) {
-        arpMode = static_cast<ArpMode>(std::clamp(mode, 0, 4));
+        arpMode = static_cast<ArpMode>(clampValue(mode, 0, 4));
     }
 
     int getNumArpHeld() const { return numArpHeld; }
@@ -161,7 +162,7 @@ public:
     int getNumPages() const { return numPages; }
 
     void setNumPages(int pages) {
-        numPages = std::clamp(pages, 1, 4);
+        numPages = clampValue(pages, 1, 4);
         sequenceLength = numPages * 16;
         if (currentStep >= sequenceLength) currentStep = 0;
         if (recordStep >= sequenceLength) recordStep = 0;
@@ -170,8 +171,8 @@ public:
     int getCurrentStep() const { return currentStep; }
     int getRecordStep() const { return recordStep; }
 
-    Step& getStep(int index) { return steps[std::clamp(index, 0, 63)]; }
-    const Step& getStep(int index) const { return steps[std::clamp(index, 0, 63)]; }
+    Step& getStep(int index) { return steps[clampValue(index, 0, 63)]; }
+    const Step& getStep(int index) const { return steps[clampValue(index, 0, 63)]; }
 
     void recordNote(int pitch) {
         if (recordStep >= 0 && recordStep < sequenceLength) {
@@ -198,7 +199,7 @@ public:
     }
 
     void setRecordStep(int step) {
-        recordStep = std::clamp(step, 0, sequenceLength - 1);
+        recordStep = clampValue(step, 0, sequenceLength - 1);
     }
 
     bool advanceStepClock(int numSamples, int& outTriggerNote, float& outTriggerVel, bool& outNoteOff) {
@@ -235,6 +236,11 @@ public:
     int sequenceLength = 64;
 
 private:
+    template <typename T>
+    static T clampValue(T value, T low, T high) {
+        return value < low ? low : (value > high ? high : value);
+    }
+
     double sampleRate = 44100.0;
     float currentBpm = 120.0f;
     double sampleCounter = 0.0;
