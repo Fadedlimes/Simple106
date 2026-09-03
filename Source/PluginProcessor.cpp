@@ -1,3 +1,4 @@
+// Simple106 Synthesizer Engine - Built with JUCE & Linux CMake
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
