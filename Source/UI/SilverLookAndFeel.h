@@ -72,9 +72,9 @@ static const ChassisTheme chassisThemes[] = {
         juce::Colour(0xff2c3545), juce::Colour(0xff141a24),
         juce::Colour(0xffdce4ef), juce::Colour(0xff8fa3b8),
         juce::Colour(0xff62788e),
-        juce::Colour(0xffe8ecf2), juce::Colour(0xff8fa3b8),
-        juce::Colour(0xff1c2735), juce::Colour(0xff1c2735),
-        juce::Colour(0xfff0f4f8), juce::Colour(0xff1c2735),
+        juce::Colour(0xffe8ecf2), juce::Colour(0xff2c3545),
+        juce::Colour(0xff14171a), juce::Colour(0xff14171a),
+        juce::Colour(0xfff0f4f8), juce::Colour(0xff14171a),
         juce::Colour(0xff0077c2), juce::Colour(0xffffffff)
     },
 
@@ -89,9 +89,9 @@ static const ChassisTheme chassisThemes[] = {
         juce::Colour(0xff3b3a38), juce::Colour(0xff141312),
         juce::Colour(0xffe8e8e8), juce::Colour(0xff9e9e9e),
         juce::Colour(0xffb99a5b),
-        juce::Colour(0xfff1e7d8), juce::Colour(0xffb99a5b),
-        juce::Colour(0xff5b432a), juce::Colour(0xff3b2d1f),
-        juce::Colour(0xfffaf1e2), juce::Colour(0xff3b2d1f),
+        juce::Colour(0xff2b2b2b), juce::Colour(0xffd9a441),   // dark combo bg + outline
+        juce::Colour(0xfff1e7d8), juce::Colour(0xfff1e7d8),   // cream arrow + text
+        juce::Colour(0xff2b2b2b), juce::Colour(0xfff1e7d8),   // dark popup bg + cream text
         juce::Colour(0xffd9a441), juce::Colour(0xff1f1306)
     },
 
