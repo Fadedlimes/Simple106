@@ -679,18 +679,18 @@ void Simple106AudioProcessorEditor::renderBackgroundCache() {
     g.setColour(ct.headerAccent);
     g.fillRect(faceplate.getX(), headerArea.getBottom(), faceplate.getWidth(), 3.0f);
 
-    // Shortened synth title
+    // Shortened synth title (kept in its original spot)
     g.setColour(ct.headerText);
     g.setFont(juce::FontOptions(17.0f).withStyle("Bold"));
     g.drawText("S-106", 20, 8, 70, 26, juce::Justification::centredLeft);
 
-    // Header labels – centered vertically with the controls (y = 8, height = 26)
+    // Header labels – shifted to the right to align better with their controls
     g.setFont(juce::FontOptions(10.5f).withStyle("Bold"));
     g.setColour(ct.headerText.withAlpha(0.8f));
 
-    g.drawText("PATCH",  85, 8, 30, 26, juce::Justification::centredRight);
-    g.drawText("THEME",  350, 8, 40, 26, juce::Justification::centredRight);
-    g.drawText("COLOUR", 510, 8, 50, 26, juce::Justification::centredRight);
+    g.drawText("PATCH",  95, 8, 35, 26, juce::Justification::centredRight);
+    g.drawText("THEME",  360, 8, 45, 26, juce::Justification::centredRight);
+    g.drawText("COLOUR", 520, 8, 55, 26, juce::Justification::centredRight);
 
     auto drawSection = [&](juce::Rectangle<int> bounds, const juce::String& title, juce::Colour accent) {
         g.setColour(ct.sectionTitle.withAlpha(0.5f));
@@ -1072,17 +1072,16 @@ void Simple106AudioProcessorEditor::drawVoiceLED(juce::Graphics& g, float cx, fl
 void Simple106AudioProcessorEditor::resized() {
     renderBackgroundCache();
 
-    // --- HEADER CONTROLS (spread out to avoid label overlap) ---
-    presetBox.setBounds(120, 8, 120, 26);
-    savePresetBtn.setBounds(250, 8, 36, 26);
-    initPresetBtn.setBounds(296, 8, 36, 26);
+    // --- HEADER CONTROLS (shifted right for more breathing room) ---
+    presetBox.setBounds(135, 8, 120, 26);
+    savePresetBtn.setBounds(265, 8, 36, 26);
+    initPresetBtn.setBounds(311, 8, 36, 26);
 
-    // Theme / Colour dropdowns with enough label space.
-    chassisThemeBox.setBounds(395, 8, 100, 26);
-    themeBox.setBounds(565, 8, 100, 26);
+    chassisThemeBox.setBounds(410, 8, 100, 26);
+    themeBox.setBounds(580, 8, 100, 26);
 
-    // Single page toggle instead of two separate synth + fx buttons.
-    pageTabBtn.setBounds(700, 8, 100, 26);
+    // Single page toggle.
+    pageTabBtn.setBounds(715, 8, 100, 26);
 
     saveDialog.setBounds(getLocalBounds());
 
