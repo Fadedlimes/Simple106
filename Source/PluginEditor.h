@@ -73,6 +73,7 @@ private:
         return chassisThemes[idx];
     }
     void applyChassisTheme();
+    void applyComboTextColours();
 
     // LED Theme (Independent COLOUR selector)
     int currentThemeIdx = 0;

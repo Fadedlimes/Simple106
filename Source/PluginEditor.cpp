@@ -169,6 +169,7 @@ buttonKeyboard(p.keyboardState)
     auto applyLEDTheme = [this]() {
         auto t = getActiveTheme();
         silverLookAndFeel.setAccentColour(t.primary, t.glow, t.highlight);
+        applyComboTextColours();
         buttonKeyboard.setLEDTheme(t.primary, t.glow, t.highlight, t.unlit);
         repaint();
     };
@@ -512,9 +513,31 @@ void Simple106AudioProcessorEditor::updateUIFromParameters() {
 void Simple106AudioProcessorEditor::applyChassisTheme() {
     const auto& ct = chassisThemes[juce::jlimit(0, NUM_CHASSIS_THEMES - 1, currentChassisThemeIdx)];
     silverLookAndFeel.setChassisTheme(ct);
+    applyComboTextColours();
     renderBackgroundCache();
     resized(); // Lay out controls after the theme colors change (also re-renders background)
     repaint();
+}
+
+void Simple106AudioProcessorEditor::applyComboTextColours() {
+    auto comboTextCol = silverLookAndFeel.findColour(juce::ComboBox::textColourId);
+
+    auto setCol = [comboTextCol](juce::ComboBox& cb) {
+        cb.setColour(juce::ComboBox::textColourId, comboTextCol);
+    };
+
+    setCol(presetBox);
+    setCol(chassisThemeBox);
+    setCol(themeBox);
+    setCol(voiceVarModeBox);
+    setCol(playModeBox);
+    setCol(lfo1ShapeBox);
+    setCol(lfo2ShapeBox);
+    setCol(lfo2TargetBox);
+    setCol(lfo3ShapeBox);
+    setCol(lfo3TargetBox);
+    setCol(chorusModeBox);
+    setCol(delaySyncBox);
 }
 
 void Simple106AudioProcessorEditor::showSaveDialog() {
