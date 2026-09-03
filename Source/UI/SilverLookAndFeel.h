@@ -121,24 +121,20 @@ static constexpr int NUM_CHASSIS_THEMES = 4;
 class SilverLookAndFeel : public juce::LookAndFeel_V4 {
 public:
     SilverLookAndFeel() {
-        setChassisTheme(chassisThemes[0]);
-
         setColour(juce::Slider::rotarySliderFillColourId, juce::Colour(0xffff2d55));
         setColour(juce::Slider::thumbColourId, juce::Colour(0xfff0f2f5));
-        setColour(juce::Slider::textBoxTextColourId, juce::Colour(0xff14171a));
         setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(0x00000000));
         setColour(juce::TextButton::buttonColourId, juce::Colour(0xffdcdfe4));
         setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xffcbd0d8));
         setColour(juce::TextButton::textColourOffId, juce::Colour(0xff14171a));
         setColour(juce::TextButton::textColourOnId, juce::Colour(0xff14171a));
-        setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xff181b20));
-        setColour(juce::ComboBox::textColourId, juce::Colour(0xfff0f2f5));
-        setColour(juce::ComboBox::outlineColourId, juce::Colour(0xff4a5260));
-        setColour(juce::ComboBox::arrowColourId, juce::Colour(0xffbac0cc));
-        setColour(juce::PopupMenu::backgroundColourId, juce::Colour(0xff1c2026));
-        setColour(juce::PopupMenu::textColourId, juce::Colour(0xfff0f2f5));
-        setColour(juce::PopupMenu::highlightedBackgroundColourId, juce::Colour(0xff333a46));
-        setColour(juce::PopupMenu::highlightedTextColourId, juce::Colour(0xffffffff));
+
+        // These can be changed by setChassisTheme:
+        setColour(juce::Slider::textBoxTextColourId, juce::Colour(0xff14171a));
+        setColour(juce::Label::textColourId, juce::Colour(0xff14171a));
+
+        // Must be called last so it overrides the base colours from above
+        setChassisTheme(chassisThemes[0]);
     }
 
     void setAccentColour(juce::Colour primary, juce::Colour glow, juce::Colour highlight) {
@@ -159,6 +155,11 @@ public:
         setColour(juce::PopupMenu::textColourId, t.popupText);
         setColour(juce::PopupMenu::highlightedBackgroundColourId, t.popupHighlight);
         setColour(juce::PopupMenu::highlightedTextColourId, t.popupHighlightedText);
+
+        // Use sectionTitle for any textual labels and value readouts
+        // so they automatically stay readable on all faceplates.
+        setColour(juce::Label::textColourId, t.sectionTitle);
+        setColour(juce::Slider::textBoxTextColourId, t.sectionTitle);
     }
 
     const ChassisTheme& getChassisTheme() const noexcept { return theme; }
@@ -273,7 +274,9 @@ public:
                         bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override {
         juce::ignoreUnused(shouldDrawButtonAsHighlighted, shouldDrawButtonAsDown);
         g.setFont(juce::FontOptions(10.5f).withStyle("Bold"));
-        g.setColour(button.getToggleState() ? theme.knobCapTop : theme.knobDialBottom.interpolatedWith(juce::Colour(0xff000000), 0.7f));
+        // Use the chassis text colour for the button label so the text is always
+        // readable against the chosen chassis background.
+        g.setColour(button.getToggleState() ? theme.sectionTitle : theme.sectionTitle.interpolatedWith(juce::Colour(0xff000000), 0.2f));
 
         auto bounds = button.getLocalBounds();
         if (button.isToggleable())

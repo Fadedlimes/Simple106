@@ -184,7 +184,7 @@ buttonKeyboard(p.keyboardState)
 
     applyChassisTheme();
 
-    // ... rest of constructor identical to original
+    // ...... rest of constructor identical to original ......
     auto setupTabBtn = [this](juce::TextButton& btn, int tabIdx) {
         btn.setButtonText(tabIdx == 0 ? "SYNTH ENGINE" : "MASTER FX");
         btn.setWantsKeyboardFocus(false);
@@ -263,18 +263,15 @@ buttonKeyboard(p.keyboardState)
     setupControl(glideTime,  "glideTime",    "GLIDE");
     setupControl(masterVol,  "masterVolume", "VOLUME");
 
-    // Voice Variation Knobs
-    juce::Colour themedText = silverLookAndFeel.getChassisTheme().sectionTitle;
+    // Voice Variation Knobs — colours will come from LookAndFeel (Label::textColourId)
     for (int i = 0; i < 6; ++i) {
         voiceKnobs[i].label.setFont(juce::FontOptions(11.0f).withStyle("Bold"));
-        voiceKnobs[i].label.setColour(juce::Label::textColourId, themedText);
         voiceKnobs[i].label.setJustificationType(juce::Justification::centredLeft);
         addAndMakeVisible(voiceKnobs[i].label);
 
         voiceKnobs[i].slider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
         voiceKnobs[i].slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 56, 16);
         voiceKnobs[i].slider.setWantsKeyboardFocus(false);
-        voiceKnobs[i].slider.setColour(juce::Slider::textBoxTextColourId, themedText);
         voiceKnobs[i].slider.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0x00000000));
         voiceKnobs[i].slider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(0x00000000));
         addAndMakeVisible(voiceKnobs[i].slider);
@@ -794,10 +791,8 @@ void Simple106AudioProcessorEditor::updateVoiceKnobAttachments() {
 }
 
 void Simple106AudioProcessorEditor::setupControl(LabeledSlider& ctrl, const juce::String& paramId, const juce::String& labelText) {
-    auto themedText = silverLookAndFeel.getChassisTheme().sectionTitle;
     ctrl.label.setText(labelText, juce::dontSendNotification);
     ctrl.label.setFont(juce::FontOptions(10.5f).withStyle("Bold"));
-    ctrl.label.setColour(juce::Label::textColourId, themedText);
     ctrl.label.setJustificationType(juce::Justification::centred);
     addAndMakeVisible(ctrl.label);
 
@@ -805,7 +800,7 @@ void Simple106AudioProcessorEditor::setupControl(LabeledSlider& ctrl, const juce
     ctrl.slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 58, 16);
     ctrl.slider.setWantsKeyboardFocus(false);
 
-    ctrl.slider.setColour(juce::Slider::textBoxTextColourId, themedText);
+    // Text colours come from the theme via SilverLookAndFeel
     ctrl.slider.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0x00000000));
     ctrl.slider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(0x00000000));
     addAndMakeVisible(ctrl.slider);
@@ -817,10 +812,8 @@ void Simple106AudioProcessorEditor::setupControl(LabeledSlider& ctrl, const juce
 }
 
 void Simple106AudioProcessorEditor::setupBox(juce::ComboBox& box, juce::Label& label, const juce::String& paramId, const juce::String& text, const juce::StringArray& items) {
-    auto themedText = silverLookAndFeel.getChassisTheme().sectionTitle;
     label.setText(text, juce::dontSendNotification);
     label.setFont(juce::FontOptions(10.5f).withStyle("Bold"));
-    label.setColour(juce::Label::textColourId, themedText);
     label.setJustificationType(juce::Justification::centredLeft);
     addAndMakeVisible(label);
 
