@@ -34,7 +34,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout Simple106AudioProcessor::cre
     params.push_back(std::make_unique<juce::AudioParameterFloat>("envMod", "Filter Env Mod", -1.0f, 1.0f, 0.5f));
 
     // Envelopes
-    params.push_back(std::make_unique<juce::AudioParameterChoice>("guiTheme", "Theme", juce::StringArray{"Classic Silver", "Midnight Blue", "Vintage Wood", "Stealth Dark"}, 0));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("ampAttack", "Amp Attack", 0.001f, 3.0f, 0.01f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("ampDecay", "Amp Decay", 0.001f, 3.0f, 0.3f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("ampSustain", "Amp Sustain", 0.0f, 1.0f, 0.7f));
@@ -104,9 +103,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout Simple106AudioProcessor::cre
     params.push_back(std::make_unique<juce::AudioParameterChoice>("seqPages", "Seq Pages",
                                                                   juce::StringArray{"1 PG [16]", "2 PG [32]", "3 PG [48]", "4 PG [64]"}, 3));
 
-    // Theme Selector
+    // ---- UI CHASSIS THEME  ----
     params.push_back(std::make_unique<juce::AudioParameterChoice>("guiTheme", "Theme",
                                                                   juce::StringArray{"Classic Silver", "Midnight Blue", "Vintage Wood", "Stealth Dark"}, 0));
+
+    // Independent LED colour selector (persists with patches / sessions)
+    params.push_back(std::make_unique<juce::AudioParameterChoice>("ledTheme", "LED Colour",
+                                                                  juce::StringArray{"Red", "Cyan", "Green", "Amber", "Yellow", "Purple", "White"}, 0));
 
     // Master FX Suite
     params.push_back(std::make_unique<juce::AudioParameterChoice>("chorusMode", "Chorus",
@@ -134,9 +137,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout Simple106AudioProcessor::cre
 
 juce::File Simple106AudioProcessor::getPresetsDirectory() const {
     auto dir = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
-    .getChildFile("Fadedlimes")
-    .getChildFile("Simple106")
-    .getChildFile("Presets");
+        .getChildFile("Fadedlimes")
+        .getChildFile("Simple106")
+        .getChildFile("Presets");
     if (!dir.exists()) {
         dir.createDirectory();
     }
@@ -524,10 +527,9 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
         }
     }
 
-    // 3. Dynamic Mode Transitions (Seamless Arp & Chord Hand-off)
+    // 3. Dynamic Mode Transitions
     if (arpOn != lastArpOn) {
         if (arpOn) {
-            // Turning ARP ON: Silence any sustained poly voices and populate ARP buffer with held keys
             voiceManager.allNotesOff();
             sequencer.clearArp();
             lastArpPlayingNote = -1;
@@ -543,7 +545,6 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
                 }
             }
         } else {
-            // Turning ARP OFF: Stop ARP note and re-trigger currently held keys as poly/mono/unison
             sequencer.clearArp();
             if (lastArpPlayingNote >= 0) {
                 voiceManager.handleNoteOff(lastArpPlayingNote);
@@ -562,7 +563,6 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
 
     if (chordOn != lastChordOn || chordIdx != lastChordType) {
         if (arpOn) {
-            // Rebuild ARP note buffer with new chord voicing for held keys
             sequencer.clearArp();
             for (int n = 0; n < 128; ++n) {
                 if (physicalKeysHeld[static_cast<size_t>(n)]) {
@@ -575,7 +575,6 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
                 }
             }
         } else {
-            // Re-trigger held keys with new chord voicing in normal poly mode
             voiceManager.allNotesOff();
             for (int n = 0; n < 128; ++n) {
                 if (physicalKeysHeld[static_cast<size_t>(n)]) {
