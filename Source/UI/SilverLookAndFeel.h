@@ -282,37 +282,10 @@ public:
         g.drawFittedText(button.getButtonText(), bounds, juce::Justification::centred, 1);
     }
 
-    // ================================================================
-    // ComboBox / Dropdown
-    // ================================================================
-    void drawComboBox(juce::Graphics& g, int width, int height, bool isButtonDown,
-                      int buttonX, int buttonY, int buttonW, int buttonH,
-                      juce::ComboBox& box) override {
-        juce::ignoreUnused(isButtonDown, buttonX, buttonY, buttonW, buttonH);
-
-        auto bounds = juce::Rectangle<float>(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height));
-
-        g.setColour(theme.comboBg);
-        g.fillRoundedRectangle(bounds, 3.0f);
-        g.setColour(theme.comboOutline);
-        g.drawRoundedRectangle(bounds, 3.0f, 1.2f);
-
-        auto textBounds = bounds.reduced(4.0f, 0.0f);
-        textBounds.removeFromRight(16.0f);
-        g.setColour(theme.comboText);
-        g.setFont(juce::FontOptions(12.0f).withStyle("Bold"));
-        g.drawFittedText(box.getText(), textBounds.toNearestInt(), juce::Justification::centredLeft, 1, 0.8f);
-
-        auto arrowBox = juce::Rectangle<float>(static_cast<float>(width - 18), 0.0f,
-                                               14.0f, static_cast<float>(height));
-        juce::Path p;
-        p.startNewSubPath(arrowBox.getCentreX() - 3.5f, arrowBox.getCentreY() - 2.0f);
-        p.lineTo(arrowBox.getCentreX() + 3.5f, arrowBox.getCentreY() - 2.0f);
-        p.lineTo(arrowBox.getCentreX(), arrowBox.getCentreY() + 2.5f);
-        p.closeSubPath();
-        g.setColour(theme.comboArrow);
-        g.fillPath(p);
-    }
+    // ComboBox text, outline, arrow and popup rendering are handled by the
+    // standard LookAndFeel_V4 implementation, automatically using the colour
+    // IDs that setChassisTheme() configures.  This prevents double text
+    // drawing and provides high contrast with the active chassis theme.
 
 private:
     ChassisTheme theme;
