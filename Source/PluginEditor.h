@@ -91,7 +91,7 @@ private:
     juce::ComboBox themeBox;         // COLOUR (LED) selector
 
     // Single page toggle instead of separate SYNTH / FX buttons
-    juce::TextButton pageTabBtn { "SYNTH" };
+    juce::TextButton pageTabBtn { "SYNTH/FX" };
 
     // Save Patch Modal Dialog
     SavePatchDialog saveDialog;

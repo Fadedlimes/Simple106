@@ -185,12 +185,11 @@ buttonKeyboard(p.keyboardState)
 
     applyChassisTheme();
 
-    // --- SYNTH / FX TAB BUTTON (toggles between pages) ---
-    pageTabBtn.setButtonText(currentTab == 0 ? "SYNTH" : "FX");
+    // --- SYNTH / FX TAB BUTTON (toggles between pages, label stays fixed) ---
+    pageTabBtn.setButtonText("SYNTH/FX");
     pageTabBtn.setWantsKeyboardFocus(false);
     pageTabBtn.onClick = [this]() {
         currentTab = currentTab == 0 ? 1 : 0;
-        pageTabBtn.setButtonText(currentTab == 0 ? "SYNTH" : "FX");
         renderBackgroundCache();
         resized();
         repaint();
@@ -684,13 +683,13 @@ void Simple106AudioProcessorEditor::renderBackgroundCache() {
     g.setFont(juce::FontOptions(17.0f).withStyle("Bold"));
     g.drawText("S-106", 20, 8, 70, 26, juce::Justification::centredLeft);
 
-    // Header labels – shifted to the right to align better with their controls
+    // Header labels – shifted right to match the widened dropdown boxes below
     g.setFont(juce::FontOptions(10.5f).withStyle("Bold"));
     g.setColour(ct.headerText.withAlpha(0.8f));
 
-    g.drawText("PATCH",  95, 8, 35, 26, juce::Justification::centredRight);
-    g.drawText("THEME",  360, 8, 45, 26, juce::Justification::centredRight);
-    g.drawText("COLOUR", 520, 8, 55, 26, juce::Justification::centredRight);
+    g.drawText("PATCH",  90, 8, 40, 26, juce::Justification::centredRight);
+    g.drawText("THEME",  345, 8, 50, 26, juce::Justification::centredRight);
+    g.drawText("COLOUR", 505, 8, 55, 26, juce::Justification::centredRight);
 
     auto drawSection = [&](juce::Rectangle<int> bounds, const juce::String& title, juce::Colour accent) {
         g.setColour(ct.sectionTitle.withAlpha(0.5f));
@@ -1072,16 +1071,16 @@ void Simple106AudioProcessorEditor::drawVoiceLED(juce::Graphics& g, float cx, fl
 void Simple106AudioProcessorEditor::resized() {
     renderBackgroundCache();
 
-    // --- HEADER CONTROLS (shifted right for more breathing room) ---
-    presetBox.setBounds(135, 8, 120, 26);
-    savePresetBtn.setBounds(265, 8, 36, 26);
-    initPresetBtn.setBounds(311, 8, 36, 26);
+    // --- HEADER CONTROLS (widened to fit longer preset and theme names) ---
+    presetBox.setBounds(130, 8, 150, 26);
+    savePresetBtn.setBounds(290, 8, 38, 26);
+    initPresetBtn.setBounds(338, 8, 38, 26);
 
-    chassisThemeBox.setBounds(410, 8, 100, 26);
-    themeBox.setBounds(580, 8, 100, 26);
+    chassisThemeBox.setBounds(400, 8, 130, 26);
+    themeBox.setBounds(560, 8, 105, 26);
 
-    // Single page toggle.
-    pageTabBtn.setBounds(715, 8, 100, 26);
+    // Single page toggle with clearer label.
+    pageTabBtn.setBounds(700, 8, 110, 26);
 
     saveDialog.setBounds(getLocalBounds());
 
