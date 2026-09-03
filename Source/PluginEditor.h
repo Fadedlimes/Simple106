@@ -90,6 +90,9 @@ private:
     juce::TextButton initPresetBtn { "INIT" };
     juce::ComboBox themeBox;         // COLOUR (LED) selector
 
+    // Single page toggle instead of separate SYNTH / FX buttons
+    juce::TextButton pageTabBtn { "SYNTH" };
+
     // Save Patch Modal Dialog
     SavePatchDialog saveDialog;
     void showSaveDialog();
@@ -98,8 +101,6 @@ private:
 
     // Tabs
     int currentTab = 0;
-    juce::TextButton synthTabBtn { "SYNTH ENGINE" };
-    juce::TextButton fxTabBtn { "MASTER FX" };
 
     struct LabeledSlider {
         juce::Slider slider;

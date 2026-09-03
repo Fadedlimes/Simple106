@@ -185,20 +185,17 @@ buttonKeyboard(p.keyboardState)
 
     applyChassisTheme();
 
-    // --- SYNTH / FX TABS ---
-    auto setupTabBtn = [this](juce::TextButton& btn, int tabIdx) {
-        btn.setButtonText(tabIdx == 0 ? "SYNTH" : "FX");
-        btn.setWantsKeyboardFocus(false);
-        btn.onClick = [this, tabIdx]() {
-            currentTab = tabIdx;
-            renderBackgroundCache();
-            resized();
-            repaint();
-        };
-        addAndMakeVisible(btn);
+    // --- SYNTH / FX TAB BUTTON (toggles between pages) ---
+    pageTabBtn.setButtonText(currentTab == 0 ? "SYNTH" : "FX");
+    pageTabBtn.setWantsKeyboardFocus(false);
+    pageTabBtn.onClick = [this]() {
+        currentTab = currentTab == 0 ? 1 : 0;
+        pageTabBtn.setButtonText(currentTab == 0 ? "SYNTH" : "FX");
+        renderBackgroundCache();
+        resized();
+        repaint();
     };
-    setupTabBtn(synthTabBtn, 0);
-    setupTabBtn(fxTabBtn, 1);
+    addAndMakeVisible(pageTabBtn);
 
     // --- SYNTH CONTROLS ---
     setupControl(dco1Morph, "dco1Morph", "MORPH");
@@ -682,15 +679,18 @@ void Simple106AudioProcessorEditor::renderBackgroundCache() {
     g.setColour(ct.headerAccent);
     g.fillRect(faceplate.getX(), headerArea.getBottom(), faceplate.getWidth(), 3.0f);
 
+    // Shortened synth title
     g.setColour(ct.headerText);
-    g.setFont(juce::FontOptions(19.0f).withStyle("Bold"));
-    g.drawText("SIMPLE 106", 24, static_cast<int>(headerArea.getY()), 90, static_cast<int>(headerArea.getHeight()), juce::Justification::centredLeft);
+    g.setFont(juce::FontOptions(17.0f).withStyle("Bold"));
+    g.drawText("S-106", 20, 8, 70, 26, juce::Justification::centredLeft);
 
+    // Header labels – centered vertically with the controls (y = 8, height = 26)
     g.setFont(juce::FontOptions(10.5f).withStyle("Bold"));
     g.setColour(ct.headerText.withAlpha(0.8f));
-    g.drawText("PATCH",  120, static_cast<int>(headerArea.getY()), 40, static_cast<int>(headerArea.getHeight()), juce::Justification::centredRight);
-    g.drawText("THEME",  380, static_cast<int>(headerArea.getY()), 35, static_cast<int>(headerArea.getHeight()), juce::Justification::centredRight);
-    g.drawText("COLOUR", 520, static_cast<int>(headerArea.getY()), 55, static_cast<int>(headerArea.getHeight()), juce::Justification::centredRight);
+
+    g.drawText("PATCH",  85, 8, 30, 26, juce::Justification::centredRight);
+    g.drawText("THEME",  350, 8, 40, 26, juce::Justification::centredRight);
+    g.drawText("COLOUR", 510, 8, 50, 26, juce::Justification::centredRight);
 
     auto drawSection = [&](juce::Rectangle<int> bounds, const juce::String& title, juce::Colour accent) {
         g.setColour(ct.sectionTitle.withAlpha(0.5f));
@@ -1073,15 +1073,16 @@ void Simple106AudioProcessorEditor::resized() {
     renderBackgroundCache();
 
     // --- HEADER CONTROLS (spread out to avoid label overlap) ---
-    presetBox.setBounds(160, 8, 120, 26);
-    savePresetBtn.setBounds(290, 8, 40, 26);
-    initPresetBtn.setBounds(340, 8, 40, 26);
+    presetBox.setBounds(120, 8, 120, 26);
+    savePresetBtn.setBounds(250, 8, 36, 26);
+    initPresetBtn.setBounds(296, 8, 36, 26);
 
-    chassisThemeBox.setBounds(425, 8, 90, 26);
-    themeBox.setBounds(590, 8, 90, 26);
+    // Theme / Colour dropdowns with enough label space.
+    chassisThemeBox.setBounds(395, 8, 100, 26);
+    themeBox.setBounds(565, 8, 100, 26);
 
-    synthTabBtn.setBounds(700, 8, 90, 26);
-    fxTabBtn.setBounds(800, 8, 95, 26);
+    // Single page toggle instead of two separate synth + fx buttons.
+    pageTabBtn.setBounds(700, 8, 100, 26);
 
     saveDialog.setBounds(getLocalBounds());
 
