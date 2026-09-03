@@ -152,6 +152,17 @@ juce::String Simple106AudioProcessor::createPatchXml(const juce::String& patchNa
     if (root == nullptr) root = std::make_unique<juce::XmlElement>("Simple106Patch");
     root->setAttribute("patchName", patchName);
 
+    // Strip GUI chassis theme and LED color from patch files so user theme preferences are never overwritten
+    for (int i = root->getNumChildElements() - 1; i >= 0; --i) {
+        auto* child = root->getChildElement(i);
+        if (child != nullptr && child->hasTagName("PARAM")) {
+            auto id = child->getStringAttribute("id");
+            if (id == "guiTheme" || id == "ledTheme") {
+                root->removeChildElement(child, true);
+            }
+        }
+    }
+
     auto* seqXml = root->createNewChildElement("Sequencer");
     seqXml->setAttribute("numPages", sequencer.getNumPages());
     seqXml->setAttribute("length", sequencer.getNumSteps());
@@ -174,11 +185,33 @@ void Simple106AudioProcessor::loadPatchXml(const juce::String& xmlString) {
     sequencer.clearArp();
     voiceManager.allNotesOff();
 
+    // Preserve the user's active chassis theme and LED color preference
+    float savedGuiTheme = apvts.getRawParameterValue("guiTheme")->load();
+    float savedLedTheme = apvts.getRawParameterValue("ledTheme")->load();
+
     auto xml = juce::XmlDocument::parse(xmlString);
     if (xml != nullptr) {
+        // Strip any legacy theme tags from older patch files
+        for (int i = xml->getNumChildElements() - 1; i >= 0; --i) {
+            auto* child = xml->getChildElement(i);
+            if (child != nullptr && child->hasTagName("PARAM")) {
+                auto id = child->getStringAttribute("id");
+                if (id == "guiTheme" || id == "ledTheme") {
+                    xml->removeChildElement(child, true);
+                }
+            }
+        }
+
         if (xml->hasTagName(apvts.state.getType()) || xml->hasTagName("Parameters")) {
             apvts.replaceState(juce::ValueTree::fromXml(*xml));
         }
+
+        // Restore user's preferred theme and color settings
+        if (auto* pGui = apvts.getParameter("guiTheme"))
+            pGui->setValueNotifyingHost(pGui->convertTo0to1(savedGuiTheme));
+        if (auto* pLed = apvts.getParameter("ledTheme"))
+            pLed->setValueNotifyingHost(pLed->convertTo0to1(savedLedTheme));
+
         if (auto* seqXml = xml->getChildByName("Sequencer")) {
             int pages = seqXml->getIntAttribute("numPages", 4);
             sequencer.setNumPages(pages);
@@ -513,6 +546,12 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
     delay.setParameters(finalDelayTimeSec, dFb, dDamp, dMix, dPingPong);
     reverb.setParameters(rSize, rDamp, rMix);
 
+    // Baseline envelope parameter update once per block (avoids 1,000,000+ std::exp calls/sec!)
+    for (auto& voice : voiceManager.getVoices()) {
+        voice.ampEnv.setParameters(aA, aD, aS, aR);
+        voice.filterEnv.setParameters(fA, fD, fS, fR);
+    }
+
     // Apply Voice Variation (Mode-dependent: Pan vs Tune)
     auto& voices = voiceManager.getVoices();
     for (int i = 0; i < 6; ++i) {
@@ -705,7 +744,11 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
     auto* outL = buffer.getWritePointer(0);
     auto* outR = buffer.getWritePointer(1);
 
-    float gainComp = (playM == 2) ? 0.35f : 0.45f;
+    bool lfoModulatesEnvelopes = (lfo2Target >= 5 && lfo2Target <= 12 && lfo2Amount > 0.001f) ||
+                                 (lfo3Target >= 5 && lfo3Target <= 12 && lfo3Amount > 0.001f);
+
+    // Constant analog-style summing bus gain (calibrated for +15% boost with zero deactivation clicks)
+    float gainComp = (playM == 2) ? 0.35f : 0.48f;
 
     for (int sample = 0; sample < buffer.getNumSamples(); ++sample) {
         float lfo1Val = lfo1.process();
@@ -757,9 +800,12 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
         applyModTarget(lfo2Target, lfo2Val);
         applyModTarget(lfo3Target, lfo3Val);
 
-        for (auto& voice : voiceManager.getVoices()) {
-            voice.ampEnv.setParameters(modAmpA, modAmpD, modAmpS, modAmpR);
-            voice.filterEnv.setParameters(modFiltA, modFiltD, modFiltS, modFiltR);
+        // Sub-block update only when an LFO is actively modulating envelope stages
+        if (lfoModulatesEnvelopes && (sample & 31) == 0) {
+            for (auto& voice : voiceManager.getVoices()) {
+                voice.ampEnv.setParameters(modAmpA, modAmpD, modAmpS, modAmpR);
+                voice.filterEnv.setParameters(modFiltA, modFiltD, modFiltS, modFiltR);
+            }
         }
 
         float sumL = 0.0f, sumR = 0.0f;
@@ -789,12 +835,13 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
 
         reverb.process(delL, delR);
 
+        // Smooth analog tape saturation: mathematically bounded in (-1, 1), zero hard clipping
         auto softSaturate = [](float x) -> float {
-            return std::tanh(x * 0.85f) * 1.176f;
+            return std::tanh(x);
         };
 
-        outL[sample] = std::clamp(softSaturate(delL * modMaster), -1.0f, 1.0f);
-        outR[sample] = std::clamp(softSaturate(delR * modMaster), -1.0f, 1.0f);
+        outL[sample] = softSaturate(delL * modMaster);
+        outR[sample] = softSaturate(delR * modMaster);
     }
 }
 

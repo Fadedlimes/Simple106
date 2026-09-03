@@ -2,19 +2,27 @@
 #include "SynthVoice.h"
 #include <array>
 #include <vector>
-#include <map>
 #include <algorithm>
 #include <cstdint>
 
 class VoiceManager {
 public:
     static constexpr int NUM_VOICES = 6;
+    static constexpr int MAX_NOTE_STACK = 16;
+    static constexpr int MAX_ACTIVE_CHORDS = 16;
+
     enum PlayMode { Poly = 0, Mono, Unison };
     enum ChordType { Major = 0, Minor, Maj7, Min7, Dom7, Sus4, Diminished, Octave, Power5th };
 
     struct NoteEvent {
         int noteNumber;
         float velocity;
+    };
+
+    struct ChordEntry {
+        int rootNote = -1;
+        int noteCount = 0;
+        int notes[5] = { 0 };
     };
 
     void init(double sampleRate) {
@@ -27,16 +35,17 @@ public:
         currentAgeCounter = 0;
         cycleVoiceIndex = 0;
         lastMonoVoice = 0;
-        activeChords.clear();
-        monoNoteStack.clear();
-        unisonNoteStack.clear();
+        monoStackSize = 0;
+        unisonStackSize = 0;
+        numActiveChords = 0;
     }
 
     void setPlayMode(int mode) {
         playMode = static_cast<PlayMode>(mode);
         isKeyHeld.fill(false);
-        monoNoteStack.clear();
-        unisonNoteStack.clear();
+        monoStackSize = 0;
+        unisonStackSize = 0;
+        numActiveChords = 0;
     }
 
     void setCycleMode(bool enable) {
@@ -50,6 +59,7 @@ public:
 
     std::vector<int> getChordIntervals(int root) const {
         std::vector<int> notes;
+        notes.reserve(4);
         notes.push_back(root);
         switch (chordType) {
             case Major:      notes.push_back(root + 4); notes.push_back(root + 7); break;
@@ -83,37 +93,38 @@ public:
                 return;
             }
 
-            monoNoteStack.erase(
-                std::remove_if(monoNoteStack.begin(), monoNoteStack.end(),
-                               [noteNumber](const NoteEvent& e) { return e.noteNumber == noteNumber; }),
-                                monoNoteStack.end());
-
-            bool isLegato = !monoNoteStack.empty();
-            monoNoteStack.push_back({ noteNumber, velocity });
+            eraseFromStack(monoNoteStack, monoStackSize, noteNumber);
+            bool isLegato = (monoStackSize > 0);
+            pushToStack(monoNoteStack, monoStackSize, { noteNumber, velocity });
 
             voices[0].setUnisonDetune(0.0f);
             isKeyHeld[0] = true;
             voices[0].setGlide(glideEnabled && isLegato, glideTime);
-            voices[0].noteOn(noteNumber, velocity);
+
+            if (isLegato && glideEnabled) {
+                voices[0].updateLegatoPitch(noteNumber, velocity);
+            } else {
+                voices[0].noteOn(noteNumber, velocity);
+            }
             return;
         }
 
         // --- 2. UNISON MODE ---
         if (playMode == Unison) {
-            unisonNoteStack.erase(
-                std::remove_if(unisonNoteStack.begin(), unisonNoteStack.end(),
-                               [noteNumber](const NoteEvent& e) { return e.noteNumber == noteNumber; }),
-                                  unisonNoteStack.end());
-
-            bool isLegato = !unisonNoteStack.empty();
-            unisonNoteStack.push_back({ noteNumber, velocity });
+            eraseFromStack(unisonNoteStack, unisonStackSize, noteNumber);
+            bool isLegato = (unisonStackSize > 0);
+            pushToStack(unisonNoteStack, unisonStackSize, { noteNumber, velocity });
 
             const float detuneSpread[NUM_VOICES] = { -14.0f, -7.0f, -2.0f, 2.0f, 7.0f, 14.0f };
             for (int i = 0; i < NUM_VOICES; ++i) {
                 isKeyHeld[i] = true;
                 voices[i].setUnisonDetune(detuneSpread[i]);
                 voices[i].setGlide(glideEnabled && isLegato, glideTime);
-                voices[i].noteOn(noteNumber, velocity);
+                if (isLegato && glideEnabled) {
+                    voices[i].updateLegatoPitch(noteNumber, velocity);
+                } else {
+                    voices[i].noteOn(noteNumber, velocity);
+                }
             }
             return;
         }
@@ -121,7 +132,14 @@ public:
         // --- 3. POLYPHONIC & CHORD MODE ---
         if (chordEnabled) {
             auto chordNotes = getChordIntervals(noteNumber);
-            activeChords[noteNumber] = chordNotes;
+            if (numActiveChords < MAX_ACTIVE_CHORDS) {
+                ChordEntry& entry = activeChordsTable[numActiveChords++];
+                entry.rootNote = noteNumber;
+                entry.noteCount = std::min(static_cast<int>(chordNotes.size()), 5);
+                for (int i = 0; i < entry.noteCount; ++i) {
+                    entry.notes[i] = chordNotes[i];
+                }
+            }
             for (int note : chordNotes) {
                 allocateSingleVoice(note, velocity, glideEnabled, glideTime);
             }
@@ -141,16 +159,12 @@ public:
                 return;
             }
 
-            monoNoteStack.erase(
-                std::remove_if(monoNoteStack.begin(), monoNoteStack.end(),
-                               [noteNumber](const NoteEvent& e) { return e.noteNumber == noteNumber; }),
-                                monoNoteStack.end());
-
-            if (monoNoteStack.empty()) {
+            eraseFromStack(monoNoteStack, monoStackSize, noteNumber);
+            if (monoStackSize == 0) {
                 isKeyHeld[0] = false;
                 voices[0].noteOff();
             } else {
-                const auto& prevNote = monoNoteStack.back();
+                const auto& prevNote = monoNoteStack[monoStackSize - 1];
                 voices[0].updateLegatoPitch(prevNote.noteNumber, prevNote.velocity);
             }
             return;
@@ -158,18 +172,14 @@ public:
 
         // --- 2. UNISON RELEASE ---
         if (playMode == Unison) {
-            unisonNoteStack.erase(
-                std::remove_if(unisonNoteStack.begin(), unisonNoteStack.end(),
-                               [noteNumber](const NoteEvent& e) { return e.noteNumber == noteNumber; }),
-                                  unisonNoteStack.end());
-
-            if (unisonNoteStack.empty()) {
+            eraseFromStack(unisonNoteStack, unisonStackSize, noteNumber);
+            if (unisonStackSize == 0) {
                 for (int i = 0; i < NUM_VOICES; ++i) {
                     isKeyHeld[i] = false;
                     voices[i].noteOff();
                 }
             } else {
-                const auto& prevNote = unisonNoteStack.back();
+                const auto& prevNote = unisonNoteStack[unisonStackSize - 1];
                 const float detuneSpread[NUM_VOICES] = { -14.0f, -7.0f, -2.0f, 2.0f, 7.0f, 14.0f };
                 for (int i = 0; i < NUM_VOICES; ++i) {
                     voices[i].setUnisonDetune(detuneSpread[i]);
@@ -181,12 +191,20 @@ public:
 
         // --- 3. POLYPHONIC & CHORD RELEASE ---
         if (chordEnabled) {
-            auto it = activeChords.find(noteNumber);
-            if (it != activeChords.end()) {
-                for (int note : it->second) {
-                    releaseSingleVoice(note);
+            int foundIndex = -1;
+            for (int i = 0; i < numActiveChords; ++i) {
+                if (activeChordsTable[i].rootNote == noteNumber) {
+                    foundIndex = i;
+                    break;
                 }
-                activeChords.erase(it);
+            }
+
+            if (foundIndex >= 0) {
+                for (int i = 0; i < activeChordsTable[foundIndex].noteCount; ++i) {
+                    releaseSingleVoice(activeChordsTable[foundIndex].notes[i]);
+                }
+                activeChordsTable[foundIndex] = activeChordsTable[numActiveChords - 1];
+                numActiveChords--;
             } else {
                 releaseSingleVoice(noteNumber);
             }
@@ -200,9 +218,9 @@ public:
             isKeyHeld[i] = false;
             voices[i].noteOff();
         }
-        activeChords.clear();
-        monoNoteStack.clear();
-        unisonNoteStack.clear();
+        numActiveChords = 0;
+        monoStackSize = 0;
+        unisonStackSize = 0;
     }
 
     std::array<SynthVoice, NUM_VOICES>& getVoices() {
@@ -214,6 +232,22 @@ public:
     }
 
 private:
+    static void eraseFromStack(std::array<NoteEvent, MAX_NOTE_STACK>& stack, int& size, int note) {
+        int w = 0;
+        for (int i = 0; i < size; ++i) {
+            if (stack[i].noteNumber != note) {
+                stack[w++] = stack[i];
+            }
+        }
+        size = w;
+    }
+
+    static void pushToStack(std::array<NoteEvent, MAX_NOTE_STACK>& stack, int& size, const NoteEvent& event) {
+        if (size < MAX_NOTE_STACK) {
+            stack[size++] = event;
+        }
+    }
+
     void allocateSingleVoice(int noteNumber, float velocity, bool glideEnabled, float glideTime) {
         currentAgeCounter++;
 
@@ -231,7 +265,7 @@ private:
 
         int voiceIndex = -1;
 
-        // 1. Same Note Reuse
+        // Tier 1: Same Note Reuse
         for (int i = 0; i < NUM_VOICES; ++i) {
             if (voices[i].getNoteNumber() == noteNumber && voices[i].isActive()) {
                 voiceIndex = i;
@@ -239,7 +273,7 @@ private:
             }
         }
 
-        // 2. Idle Voice
+        // Tier 2: Idle Voice
         if (voiceIndex == -1) {
             for (int i = 0; i < NUM_VOICES; ++i) {
                 if (!voices[i].isActive()) {
@@ -249,7 +283,7 @@ private:
             }
         }
 
-        // 3. Steal from Released Voice
+        // Tier 3: Steal Oldest Released Voice
         if (voiceIndex == -1) {
             uint32_t oldestReleasedAge = 0xFFFFFFFF;
             for (int i = 0; i < NUM_VOICES; ++i) {
@@ -260,7 +294,7 @@ private:
             }
         }
 
-        // 4. Steal from Oldest Held Voice
+        // Tier 4: Steal Oldest Held Voice Fallback
         if (voiceIndex == -1) {
             uint32_t oldestHeldAge = 0xFFFFFFFF;
             for (int i = 0; i < NUM_VOICES; ++i) {
@@ -295,9 +329,15 @@ private:
     std::array<uint32_t, NUM_VOICES> voiceAge;
     std::array<uint32_t, NUM_VOICES> keyOffAge;
     std::array<bool, NUM_VOICES> isKeyHeld;
-    std::map<int, std::vector<int>> activeChords;
-    std::vector<NoteEvent> monoNoteStack;
-    std::vector<NoteEvent> unisonNoteStack;
+
+    std::array<ChordEntry, MAX_ACTIVE_CHORDS> activeChordsTable;
+    int numActiveChords = 0;
+
+    std::array<NoteEvent, MAX_NOTE_STACK> monoNoteStack;
+    int monoStackSize = 0;
+
+    std::array<NoteEvent, MAX_NOTE_STACK> unisonNoteStack;
+    int unisonStackSize = 0;
 
     uint32_t currentAgeCounter = 0;
     int cycleVoiceIndex = 0;
