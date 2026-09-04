@@ -44,7 +44,6 @@ public:
     }
 
     void noteOn(int midiNote, float vel) {
-        // If this voice is currently sounding, apply instant step-compensation to eliminate clicks
         if (isActive() && ampEnv.getLevel() > 0.001f) {
             antiClickOffsetL = lastOutL;
             antiClickOffsetR = lastOutR;
@@ -57,7 +56,6 @@ public:
             antiClickStepR = 0.0f;
         }
 
-        // Start note immediately: zero latency and noteOff can NEVER be missed
         noteNumber = midiNote;
         velocity = vel;
         currentFreq = 440.0 * std::pow(2.0, (midiNote - 69) / 12.0);
@@ -103,9 +101,10 @@ public:
         glideRate = (glideTimeSec <= 0.001f) ? 1.0f : static_cast<float>(1.0 / (glideTimeSec * sampleRate));
     }
 
-    void process(float dco1Morph, float dco1PWM, float dco1Level,
+    void process(float dco1Morph, float dco1PWM, int dco1Octave, float dco1Fold, float dco1Level,
                  float dco2Morph, float dco2PWM, float dco2Level, int dco2Semi, float dco2Cents,
-                 float subLevel, float noiseLevel,
+                 bool syncActive, float xmodAmount, int xmodMode,
+                 int subOctave, float subLevel, float noiseLevel,
                  float hpfCutoff, float lpfCutoff, float lpfRes, float envModAmount,
                  float lfo1Value, float lfo1ToFilter, float lfo1ToPitch,
                  float& outL, float& outR)
@@ -125,50 +124,82 @@ public:
             renderedFreq = targetFreq;
         }
 
-        // Pitch Mod: LFO + Unison Detune + Per-Voice Microtune Offset (precalculated tuneRatio)
+        // Pitch Mod: LFO + Unison Detune + Per-Voice Microtune Offset
         double pitchMod = (1.0 + (lfo1Value * lfo1ToPitch * 0.05)) * tuneRatio;
         double baseFreq = renderedFreq * pitchMod;
 
-        // DCO 1
-        dco1.setFrequency(baseFreq);
+        // DCO 1 Octave Footages: 0: 32' (0.25x), 1: 16' (0.5x), 2: 8' (1.0x), 3: 4' (2.0x)
+        double dco1OctMult = 1.0;
+        switch (dco1Octave) {
+            case 0: dco1OctMult = 0.25; break;
+            case 1: dco1OctMult = 0.50; break;
+            case 2: dco1OctMult = 1.00; break;
+            case 3: dco1OctMult = 2.00; break;
+            default: dco1OctMult = 1.00; break;
+        }
+
+        dco1.setFrequency(baseFreq * dco1OctMult);
         dco1.setWaveMorph(dco1Morph);
         dco1.setPulseWidth(dco1PWM);
-        float sigDco1 = dco1.process() * dco1Level;
 
-        // DCO 2
+        bool dco1Wrapped = false;
+        double dco1WrapFrac = 0.0;
+        float rawDco1 = dco1.process(&dco1Wrapped, &dco1WrapFrac);
+
+        // Diode Wavefolder on DCO 1
+        float foldedDco1 = PolyBLEPOscillator::applyWavefold(rawDco1, dco1Fold);
+        float sigDco1 = foldedDco1 * dco1Level;
+
+        // DCO 2 Tuning
         double dco2Ratio = std::pow(2.0, (dco2Semi + (dco2Cents / 100.0)) / 12.0);
-        dco2.setFrequency(baseFreq * dco2Ratio);
+        double dco2BaseFreq = baseFreq * dco2Ratio;
+
+        // Audio-Rate Cross Modulation (FM)
+        double dco2FinalFreq = dco2BaseFreq;
+        if (xmodMode == 0 && xmodAmount > 0.001f) {
+            dco2FinalFreq = dco2BaseFreq * std::max(0.05, 1.0 + (foldedDco1 * xmodAmount * 1.5));
+        }
+
+        dco2.setFrequency(dco2FinalFreq);
         dco2.setWaveMorph(dco2Morph);
         dco2.setPulseWidth(dco2PWM);
-        float sigDco2 = dco2.process() * dco2Level;
 
-        // Sub Oscillator (-1 Octave Square with PolyBLEP anti-aliasing)
-        double subInc = (baseFreq * 0.5) / sampleRate;
+        // Hard Sync
+        float rawDco2 = 0.0f;
+        if (syncActive) {
+            rawDco2 = dco2.processSynced(dco1Wrapped, dco1WrapFrac);
+        } else {
+            rawDco2 = dco2.process();
+        }
+
+        // Ring Modulation or Standard DCO 2
+        float sigDco2 = 0.0f;
+        if (xmodMode == 1 && xmodAmount > 0.001f) {
+            float ringMod = foldedDco1 * rawDco2;
+            float blendedDco2 = (1.0f - xmodAmount) * rawDco2 + xmodAmount * ringMod;
+            sigDco2 = blendedDco2 * dco2Level;
+        } else {
+            sigDco2 = rawDco2 * dco2Level;
+        }
+
+        // Sub Oscillator: 0: -1 Octave (0.5x), 1: -2 Octaves (0.25x)
+        double subMult = (subOctave == 1) ? 0.25 : 0.50;
+        double subInc = (baseFreq * subMult) / sampleRate;
         subPhase += subInc;
         if (subPhase >= 1.0) subPhase -= 1.0;
 
         float subVal = (subPhase < 0.5) ? 1.0f : -1.0f;
-        auto polyBlep = [](double t, double dt) -> float {
-            if (t < dt) {
-                double x = t / dt;
-                return static_cast<float>(x + x - x * x - 1.0);
-            } else if (t > 1.0 - dt) {
-                double x = (t - 1.0) / dt;
-                return static_cast<float>(x * x + x + x + 1.0);
-            }
-            return 0.0f;
-        };
-        subVal += polyBlep(subPhase, subInc);
+        subVal += static_cast<float>(PolyBLEPOscillator::polyBlep(subPhase, subInc));
         double subHalf = subPhase - 0.5;
         if (subHalf < 0.0) subHalf += 1.0;
-        subVal -= polyBlep(subHalf, subInc);
+        subVal -= static_cast<float>(PolyBLEPOscillator::polyBlep(subHalf, subInc));
         float sigSub = subVal * subLevel;
 
-        // White Noise: Fast 32-bit lock-free LCG
+        // White Noise: 32-bit lock-free LCG
         noiseSeed = noiseSeed * 196314165u + 907633515u;
         float sigNoise = (static_cast<float>(static_cast<int32_t>(noiseSeed)) * (1.0f / 2147483648.0f)) * noiseLevel;
 
-        // Balanced Voice Mixer
+        // Balanced Voice Sum
         float voiceMix = (sigDco1 * 0.50f) + (sigDco2 * 0.50f) + (sigSub * 0.40f) + (sigNoise * 0.25f);
 
         float filterEnvVal = filterEnv.process();
@@ -178,16 +209,16 @@ public:
         filter.setHPFCutoff(hpfCutoff);
         filter.setLPFParams(modulatedCutoff, lpfRes);
 
-        // Calibrated output level (+15% punch boost)
+        // Scaled voice output (+15% punch boost)
         float monoSignal = filter.process(voiceMix) * ampEnvVal * velocity * 0.72f;
 
-        // Precalculated Panning with Anti-Click Step Compensation
+        // Panning and Instantaneous Offset Step-Compensation
         outL = (monoSignal * panL) + antiClickOffsetL;
         outR = (monoSignal * panR) + antiClickOffsetR;
         lastOutL = outL;
         lastOutR = outR;
 
-        // Decay anti-click offset ramp smoothly to zero
+        // Ramp anti-click offset to zero over 48 samples
         if (std::abs(antiClickOffsetL) > std::abs(antiClickStepL)) {
             antiClickOffsetL -= antiClickStepL;
         } else {
@@ -210,7 +241,7 @@ private:
         tuneRatio = std::pow(2.0, totalCents / 1200.0);
     }
 
-    static constexpr int ANTI_CLICK_SAMPLES = 48; // ~1.1ms at 44.1 kHz
+    static constexpr int ANTI_CLICK_SAMPLES = 48;
 
     double sampleRate = 44100.0;
     int noteNumber = -1;

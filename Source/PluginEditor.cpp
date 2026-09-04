@@ -42,10 +42,12 @@ SavePatchDialog::SavePatchDialog(std::function<void(const juce::String&)> onSave
     addAndMakeVisible(patchNameEditor);
 
     confirmSaveBtn.setWantsKeyboardFocus(false);
+    confirmSaveBtn.setMouseClickGrabsKeyboardFocus(false);
     confirmSaveBtn.onClick = [this]() { if (saveCallback) saveCallback(patchNameEditor.getText()); };
     addAndMakeVisible(confirmSaveBtn);
 
     cancelSaveBtn.setWantsKeyboardFocus(false);
+    cancelSaveBtn.setMouseClickGrabsKeyboardFocus(false);
     cancelSaveBtn.onClick = [this]() { if (cancelCallback) cancelCallback(); };
     addAndMakeVisible(cancelSaveBtn);
 }
@@ -116,9 +118,10 @@ buttonKeyboard(p.keyboardState)
     currentChassisThemeIdx = juce::jlimit(0, NUM_CHASSIS_THEMES - 1,
                                           static_cast<int>(getSafeParamValue("guiTheme", 0.0f)));
 
-    // --- HEADER PRESET & LED THEME CONTROLS ---
+    // Header Controls
     refreshPresetList();
     presetBox.setWantsKeyboardFocus(false);
+    presetBox.setMouseClickGrabsKeyboardFocus(false);
     presetBox.onChange = [this]() {
         int id = presetBox.getSelectedId();
         if (id >= 1 && id <= 8) {
@@ -134,12 +137,14 @@ buttonKeyboard(p.keyboardState)
     addAndMakeVisible(presetBox);
 
     savePresetBtn.setWantsKeyboardFocus(false);
+    savePresetBtn.setMouseClickGrabsKeyboardFocus(false);
     savePresetBtn.onClick = [this]() {
         showSaveDialog();
     };
     addAndMakeVisible(savePresetBtn);
 
     initPresetBtn.setWantsKeyboardFocus(false);
+    initPresetBtn.setMouseClickGrabsKeyboardFocus(false);
     initPresetBtn.onClick = [this]() {
         audioProcessor.loadFactoryPreset(0);
         presetBox.setSelectedId(1, juce::dontSendNotification);
@@ -147,9 +152,9 @@ buttonKeyboard(p.keyboardState)
     };
     addAndMakeVisible(initPresetBtn);
 
-    // 4-Chassis Theme Dropdown (THEME)
     chassisThemeBox.addItemList({ "Classic Silver", "Midnight Blue", "Vintage Wood", "Stealth Dark" }, 1);
     chassisThemeBox.setWantsKeyboardFocus(false);
+    chassisThemeBox.setMouseClickGrabsKeyboardFocus(false);
     chassisThemeBox.setSelectedId(currentChassisThemeIdx + 1, juce::dontSendNotification);
     chassisThemeBox.onChange = [this]() {
         currentChassisThemeIdx = juce::jlimit(0, NUM_CHASSIS_THEMES - 1,
@@ -161,9 +166,9 @@ buttonKeyboard(p.keyboardState)
     };
     addAndMakeVisible(chassisThemeBox);
 
-    // LED Colour selector
     themeBox.addItemList({ "Red", "Cyan", "Green", "Amber", "Yellow", "Purple", "White" }, 1);
     themeBox.setWantsKeyboardFocus(false);
+    themeBox.setMouseClickGrabsKeyboardFocus(false);
     themeBox.setSelectedId(currentThemeIdx + 1, juce::dontSendNotification);
 
     auto applyLEDTheme = [this]() {
@@ -185,9 +190,8 @@ buttonKeyboard(p.keyboardState)
 
     applyChassisTheme();
 
-    // --- SYNTH / FX TAB BUTTON (toggles between pages, label stays fixed) ---
-    pageTabBtn.setButtonText("SYNTH/FX");
     pageTabBtn.setWantsKeyboardFocus(false);
+    pageTabBtn.setMouseClickGrabsKeyboardFocus(false);
     pageTabBtn.onClick = [this]() {
         currentTab = currentTab == 0 ? 1 : 0;
         renderBackgroundCache();
@@ -197,15 +201,17 @@ buttonKeyboard(p.keyboardState)
     addAndMakeVisible(pageTabBtn);
 
     // --- SYNTH CONTROLS ---
-    setupControl(dco1Morph, "dco1Morph", "MORPH");
-    setupControl(dco1PWM,   "dco1PWM",   "PWM");
-    setupControl(dco1Level, "dco1Level", "LEVEL");
+    setupControl(dco1Morph,  "dco1Morph",  "MORPH");
+    setupControl(dco1PWM,    "dco1PWM",    "PWM");
+    setupControl(dco1Octave, "dco1Octave", "OCTAVE");
+    setupControl(dco1Fold,   "dco1Fold",   "FOLD");
+    setupControl(dco1Level,  "dco1Level",  "LEVEL");
 
-    setupControl(dco2Morph, "dco2Morph", "MORPH");
-    setupControl(dco2PWM,   "dco2PWM",   "PWM");
-    setupControl(dco2Semi,  "dco2Semi",  "SEMI");
-    setupControl(dco2Cents, "dco2Cents", "DETUNE");
-    setupControl(dco2Level, "dco2Level", "LEVEL");
+    setupControl(dco2Morph,  "dco2Morph",  "MORPH");
+    setupControl(dco2PWM,    "dco2PWM",    "PWM");
+    setupControl(dco2Semi,   "dco2Semi",   "SEMI");
+    setupControl(dco2Cents,  "dco2Cents",  "DETUNE");
+    setupControl(dco2Level,  "dco2Level",  "LEVEL");
 
     auto formatMorph = [](double val) -> juce::String {
         if (val <= 0.06) return "TRI";
@@ -220,17 +226,39 @@ buttonKeyboard(p.keyboardState)
     dco1Morph.slider.textFromValueFunction = formatMorph;
     dco2Morph.slider.textFromValueFunction = formatMorph;
 
+    dco1Octave.slider.textFromValueFunction = [](double v) {
+        int idx = juce::jlimit(0, 3, static_cast<int>(std::round(v)));
+        const char* octs[] = { "32'", "16'", "8'", "4'" };
+        return juce::String(octs[idx]);
+    };
+
+    dco1Fold.slider.textFromValueFunction = [](double v) { return juce::String((int)(v * 100.0)) + "%"; };
     dco2Semi.slider.textFromValueFunction = [](double v) { return juce::String((int)v) + " st"; };
     dco2Cents.slider.textFromValueFunction = [](double v) { return juce::String((int)v) + " ct"; };
+
+    setupControl(subLevel,   "subLevel",   "SUB OSC");
+    setupControl(noiseLevel, "noiseLevel", "NOISE");
+    setupControl(xmodAmount, "xmodAmount", "X-MOD");
+    xmodAmount.slider.textFromValueFunction = [](double v) { return juce::String((int)(v * 100.0)) + "%"; };
+
+    setupBox(subOctBox, subOctLabel, "subOctave", "SUB OCT", { "-1", "-2" });
+    setupBox(xmodModeBox, xmodModeLabel, "xmodMode", "X-TYPE", { "FM", "RING" });
+
+    syncBtn.setClickingTogglesState(true);
+    syncBtn.setWantsKeyboardFocus(false);
+    syncBtn.setMouseClickGrabsKeyboardFocus(false);
+    addAndMakeVisible(syncBtn);
+    if (audioProcessor.apvts.getParameter("syncMode") != nullptr) {
+        btnAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+            audioProcessor.apvts, "syncMode", syncBtn));
+    }
+
     hpfCutoff.slider.textFromValueFunction = [](double v) { return juce::String((int)v) + " Hz"; };
     lpfCutoff.slider.textFromValueFunction = [](double v) { return (v >= 1000.0) ? juce::String(v / 1000.0, 1) + "k" : juce::String((int)v); };
     lfo1Rate.slider.textFromValueFunction = [](double v) { return juce::String(v, 1) + " Hz"; };
     lfo2Rate.slider.textFromValueFunction = [](double v) { return juce::String(v, 1) + " Hz"; };
     lfo3Rate.slider.textFromValueFunction = [](double v) { return juce::String(v, 1) + " Hz"; };
     envMod.slider.textFromValueFunction = [](double v) { return juce::String((int)(v * 100.0)) + "%"; };
-
-    setupControl(subLevel,   "subLevel",   "SUB OSC");
-    setupControl(noiseLevel, "noiseLevel", "NOISE");
 
     setupControl(hpfCutoff, "hpfCutoff", "HPF");
     setupControl(lpfCutoff, "lpfCutoff", "CUTOFF");
@@ -260,15 +288,17 @@ buttonKeyboard(p.keyboardState)
     setupControl(glideTime,  "glideTime",    "GLIDE");
     setupControl(masterVol,  "masterVolume", "VOLUME");
 
-    // Voice Variation Knobs — colours come from LookAndFeel (Label::textColourId)
+    // Voice Variation Knobs
     for (int i = 0; i < 6; ++i) {
         voiceKnobs[i].label.setFont(juce::FontOptions(11.0f).withStyle("Bold"));
         voiceKnobs[i].label.setJustificationType(juce::Justification::centredLeft);
+        voiceKnobs[i].label.setInterceptsMouseClicks(false, false);
         addAndMakeVisible(voiceKnobs[i].label);
 
         voiceKnobs[i].slider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
         voiceKnobs[i].slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 56, 16);
         voiceKnobs[i].slider.setWantsKeyboardFocus(false);
+        voiceKnobs[i].slider.setMouseClickGrabsKeyboardFocus(false);
         voiceKnobs[i].slider.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0x00000000));
         voiceKnobs[i].slider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(0x00000000));
         addAndMakeVisible(voiceKnobs[i].slider);
@@ -278,9 +308,9 @@ buttonKeyboard(p.keyboardState)
     voiceVarModeBox.onChange = [this]() { updateVoiceKnobAttachments(); };
     updateVoiceKnobAttachments();
 
-    // Voice Cycling Button
     cycleBtn.setClickingTogglesState(true);
     cycleBtn.setWantsKeyboardFocus(false);
+    cycleBtn.setMouseClickGrabsKeyboardFocus(false);
     addAndMakeVisible(cycleBtn);
     if (audioProcessor.apvts.getParameter("cycleMode") != nullptr) {
         btnAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
@@ -292,7 +322,8 @@ buttonKeyboard(p.keyboardState)
         "Filt Attack", "Filt Decay", "Filt Sustain", "Filt Release",
         "Amp Attack", "Amp Decay", "Amp Sustain", "Amp Release",
         "DCO1 Morph", "DCO1 PWM", "DCO2 Morph", "DCO2 PWM", "DCO2 Semi", "DCO2 Detune",
-        "Sub Level", "Noise Level", "Glide Time", "Master Volume"
+        "Sub Level", "Noise Level", "Glide Time", "Master Volume",
+        "DCO1 Fold", "X-Mod Amount"
     };
 
     setupBox(lfo1ShapeBox, lfo1ShapeLabel, "lfo1Shape", "SHAPE", { "Sine", "Triangle", "Saw Up", "Saw Down", "Square", "S&H" });
@@ -318,7 +349,9 @@ buttonKeyboard(p.keyboardState)
     setupControl(delayDamp, "delayDamp", "DAMPING");
     setupControl(delayMix,  "delayMix",  "DELAY MIX");
 
+    delayPingPongBtn.setClickingTogglesState(true);
     delayPingPongBtn.setWantsKeyboardFocus(false);
+    delayPingPongBtn.setMouseClickGrabsKeyboardFocus(false);
     addAndMakeVisible(delayPingPongBtn);
     if (audioProcessor.apvts.getParameter("delayPingPong") != nullptr) {
         btnAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
@@ -332,6 +365,7 @@ buttonKeyboard(p.keyboardState)
     // --- SEQUENCER & PERFORMANCE CONTROLS ---
     seqPlayBtn.setClickingTogglesState(true);
     seqPlayBtn.setWantsKeyboardFocus(false);
+    seqPlayBtn.setMouseClickGrabsKeyboardFocus(false);
     seqPlayBtn.onClick = [this]() {
         audioProcessor.sequencer.isPlaying = seqPlayBtn.getToggleState();
         repaint(14, 470, 892, 46);
@@ -340,6 +374,7 @@ buttonKeyboard(p.keyboardState)
 
     seqRecBtn.setClickingTogglesState(true);
     seqRecBtn.setWantsKeyboardFocus(false);
+    seqRecBtn.setMouseClickGrabsKeyboardFocus(false);
     seqRecBtn.onClick = [this]() {
         audioProcessor.sequencer.isRecording = seqRecBtn.getToggleState();
         repaint(14, 470, 892, 46);
@@ -347,6 +382,7 @@ buttonKeyboard(p.keyboardState)
     addAndMakeVisible(seqRecBtn);
 
     seqRestBtn.setWantsKeyboardFocus(false);
+    seqRestBtn.setMouseClickGrabsKeyboardFocus(false);
     seqRestBtn.onClick = [this]() {
         if (audioProcessor.sequencer.isRecording) {
             audioProcessor.sequencer.recordRest();
@@ -356,15 +392,16 @@ buttonKeyboard(p.keyboardState)
     addAndMakeVisible(seqRestBtn);
 
     seqClearBtn.setWantsKeyboardFocus(false);
+    seqClearBtn.setMouseClickGrabsKeyboardFocus(false);
     seqClearBtn.onClick = [this]() {
         audioProcessor.sequencer.clearPattern();
         repaint(14, 470, 892, 46);
     };
     addAndMakeVisible(seqClearBtn);
 
-    // Arp Module
     arpToggleBtn.setClickingTogglesState(true);
     arpToggleBtn.setWantsKeyboardFocus(false);
+    arpToggleBtn.setMouseClickGrabsKeyboardFocus(false);
     addAndMakeVisible(arpToggleBtn);
     if (audioProcessor.apvts.getParameter("arpEnable") != nullptr) {
         btnAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
@@ -372,6 +409,7 @@ buttonKeyboard(p.keyboardState)
     }
 
     arpPrevBtn.setWantsKeyboardFocus(false);
+    arpPrevBtn.setMouseClickGrabsKeyboardFocus(false);
     arpPrevBtn.onClick = [this]() {
         currentArpIdx = (currentArpIdx + 4) % 5;
         if (auto* param = audioProcessor.apvts.getParameter("arpMode"))
@@ -381,6 +419,7 @@ buttonKeyboard(p.keyboardState)
     addAndMakeVisible(arpPrevBtn);
 
     arpNextBtn.setWantsKeyboardFocus(false);
+    arpNextBtn.setMouseClickGrabsKeyboardFocus(false);
     arpNextBtn.onClick = [this]() {
         currentArpIdx = (currentArpIdx + 1) % 5;
         if (auto* param = audioProcessor.apvts.getParameter("arpMode"))
@@ -389,9 +428,9 @@ buttonKeyboard(p.keyboardState)
     };
     addAndMakeVisible(arpNextBtn);
 
-    // Chord Module
     chordToggleBtn.setClickingTogglesState(true);
     chordToggleBtn.setWantsKeyboardFocus(false);
+    chordToggleBtn.setMouseClickGrabsKeyboardFocus(false);
     addAndMakeVisible(chordToggleBtn);
     if (audioProcessor.apvts.getParameter("chordEnable") != nullptr) {
         btnAttachments.push_back(std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
@@ -399,6 +438,7 @@ buttonKeyboard(p.keyboardState)
     }
 
     chordPrevBtn.setWantsKeyboardFocus(false);
+    chordPrevBtn.setMouseClickGrabsKeyboardFocus(false);
     chordPrevBtn.onClick = [this]() {
         currentChordIdx = (currentChordIdx + 8) % 9;
         if (auto* param = audioProcessor.apvts.getParameter("chordType"))
@@ -408,6 +448,7 @@ buttonKeyboard(p.keyboardState)
     addAndMakeVisible(chordPrevBtn);
 
     chordNextBtn.setWantsKeyboardFocus(false);
+    chordNextBtn.setMouseClickGrabsKeyboardFocus(false);
     chordNextBtn.onClick = [this]() {
         currentChordIdx = (currentChordIdx + 1) % 9;
         if (auto* param = audioProcessor.apvts.getParameter("chordType"))
@@ -416,10 +457,10 @@ buttonKeyboard(p.keyboardState)
     };
     addAndMakeVisible(chordNextBtn);
 
-    // Steps Module
     audioProcessor.sequencer.setNumPages(currentPagesIdx + 1);
 
     stepsPrevBtn.setWantsKeyboardFocus(false);
+    stepsPrevBtn.setMouseClickGrabsKeyboardFocus(false);
     stepsPrevBtn.onClick = [this]() {
         currentPagesIdx = (currentPagesIdx + 3) % 4;
         audioProcessor.sequencer.setNumPages(currentPagesIdx + 1);
@@ -431,6 +472,7 @@ buttonKeyboard(p.keyboardState)
     addAndMakeVisible(stepsPrevBtn);
 
     stepsNextBtn.setWantsKeyboardFocus(false);
+    stepsNextBtn.setMouseClickGrabsKeyboardFocus(false);
     stepsNextBtn.onClick = [this]() {
         currentPagesIdx = (currentPagesIdx + 1) % 4;
         audioProcessor.sequencer.setNumPages(currentPagesIdx + 1);
@@ -440,8 +482,8 @@ buttonKeyboard(p.keyboardState)
     };
     addAndMakeVisible(stepsNextBtn);
 
-    // Page Module
     pagePrevBtn.setWantsKeyboardFocus(false);
+    pagePrevBtn.setMouseClickGrabsKeyboardFocus(false);
     pagePrevBtn.onClick = [this]() {
         int maxPages = audioProcessor.sequencer.getNumPages();
         if (maxPages > 0) {
@@ -453,6 +495,7 @@ buttonKeyboard(p.keyboardState)
     addAndMakeVisible(pagePrevBtn);
 
     pageNextBtn.setWantsKeyboardFocus(false);
+    pageNextBtn.setMouseClickGrabsKeyboardFocus(false);
     pageNextBtn.onClick = [this]() {
         int maxPages = audioProcessor.sequencer.getNumPages();
         if (maxPages > 0) {
@@ -463,23 +506,25 @@ buttonKeyboard(p.keyboardState)
     };
     addAndMakeVisible(pageNextBtn);
 
+    buttonKeyboard.setWantsKeyboardFocus(false);
+    buttonKeyboard.setMouseClickGrabsKeyboardFocus(false);
     addAndMakeVisible(buttonKeyboard);
 
-    // Modal Save Dialog
     addChildComponent(saveDialog);
 
-    applyValueTextColours(); // Ensures all knob values use the correct theme text colour
+    applyValueTextColours();
 
     setWantsKeyboardFocus(true);
     addKeyListener(this);
+    addMouseListener(this, true); // Catch clicks anywhere in the window hierarchy
 
-    // Window Bounds & Real-Time Timer
     setSize(920, 640);
     startTimerHz(60);
 }
 
 Simple106AudioProcessorEditor::~Simple106AudioProcessorEditor() {
     stopTimer();
+    removeMouseListener(this);
     removeKeyListener(this);
     setLookAndFeel(nullptr);
 }
@@ -514,7 +559,7 @@ void Simple106AudioProcessorEditor::applyChassisTheme() {
     applyComboTextColours();
     applyValueTextColours();
     renderBackgroundCache();
-    resized(); // Lay out controls after the theme colors change (also re-renders background)
+    resized();
     repaint();
 }
 
@@ -528,6 +573,8 @@ void Simple106AudioProcessorEditor::applyComboTextColours() {
     setCol(presetBox);
     setCol(chassisThemeBox);
     setCol(themeBox);
+    setCol(subOctBox);
+    setCol(xmodModeBox);
     setCol(voiceVarModeBox);
     setCol(playModeBox);
     setCol(lfo1ShapeBox);
@@ -548,10 +595,9 @@ void Simple106AudioProcessorEditor::applyValueTextColours() {
 
     auto setLabeled = [&setVal](LabeledSlider& c) { setVal(c.slider); };
 
-    setLabeled(dco1Morph);   setLabeled(dco1PWM);   setLabeled(dco1Level);
-    setLabeled(dco2Morph);   setLabeled(dco2PWM);   setLabeled(dco2Level);
-    setLabeled(dco2Semi);    setLabeled(dco2Cents);
-    setLabeled(subLevel);    setLabeled(noiseLevel);
+    setLabeled(dco1Morph);   setLabeled(dco1PWM);   setLabeled(dco1Octave); setLabeled(dco1Fold); setLabeled(dco1Level);
+    setLabeled(dco2Morph);   setLabeled(dco2PWM);   setLabeled(dco2Semi);   setLabeled(dco2Cents); setLabeled(dco2Level);
+    setLabeled(subLevel);    setLabeled(noiseLevel); setLabeled(xmodAmount);
     setLabeled(hpfCutoff);   setLabeled(lpfCutoff); setLabeled(lpfRes);  setLabeled(envMod);
     setLabeled(filtA);       setLabeled(filtD);     setLabeled(filtS);   setLabeled(filtR);
     setLabeled(ampA);        setLabeled(ampD);      setLabeled(ampS);    setLabeled(ampR);
@@ -640,7 +686,7 @@ void Simple106AudioProcessorEditor::renderBackgroundCache() {
     g.setGradientFill(plateGrad);
     g.fillRoundedRectangle(faceplate, 4.0f);
 
-    if (currentChassisThemeIdx == 2) { // Vintage Wood
+    if (currentChassisThemeIdx == 2) {
         juce::ColourGradient woodGradL(juce::Colour(0xff7a5c3e), faceplate.getX(), faceplate.getY(),
                                        juce::Colour(0xff3c2a1a), faceplate.getX() + 12.0f, faceplate.getY(), false);
         g.setGradientFill(woodGradL);
@@ -652,7 +698,7 @@ void Simple106AudioProcessorEditor::renderBackgroundCache() {
         g.fillRoundedRectangle(faceplate.withLeft(faceplate.getRight() - 12.0f), 4.0f);
     }
 
-    if (currentChassisThemeIdx == 1) { // Midnight Blue
+    if (currentChassisThemeIdx == 1) {
         g.setColour(juce::Colour(0x6600bfff));
         for (float y = 70.0f; y < faceplate.getBottom(); y += 28.0f) {
             g.drawHorizontalLine(static_cast<int>(y), faceplate.getX() + 8.0f, faceplate.getRight() - 8.0f);
@@ -678,12 +724,10 @@ void Simple106AudioProcessorEditor::renderBackgroundCache() {
     g.setColour(ct.headerAccent);
     g.fillRect(faceplate.getX(), headerArea.getBottom(), faceplate.getWidth(), 3.0f);
 
-    // Shortened synth title (kept in its original spot)
     g.setColour(ct.headerText);
     g.setFont(juce::FontOptions(17.0f).withStyle("Bold"));
     g.drawText("S-106", 20, 8, 70, 26, juce::Justification::centredLeft);
 
-    // Header labels – repositioned to match the shifted header controls
     g.setFont(juce::FontOptions(10.5f).withStyle("Bold"));
     g.setColour(ct.headerText.withAlpha(0.8f));
 
@@ -709,7 +753,7 @@ void Simple106AudioProcessorEditor::renderBackgroundCache() {
         drawSection({372, 56, 275, 195}, "HPF & 24dB VCF", juce::Colour(0xffe67e22));
         drawSection({655, 56, 250, 195}, "ENVELOPES", juce::Colour(0xff27ae60));
 
-        drawSection({14, 258, 200, 205}, "SUB & NOISE", juce::Colour(0xff8e44ad));
+        drawSection({14, 258, 200, 205}, "SUB, NOISE & X-MOD", juce::Colour(0xff8e44ad));
         drawSection({222, 258, 425, 205}, "MODULATION (LFO 1, 2 & 3)", juce::Colour(0xffd35400));
         drawSection({655, 258, 250, 205}, "VOICE VARIATION MATRIX", juce::Colour(0xffc0392b));
 
@@ -740,13 +784,16 @@ void Simple106AudioProcessorEditor::renderBackgroundCache() {
     g.drawText("STEPS", 552, 479, 44, 26, juce::Justification::centredRight);
     g.drawText("PAGE", 676, 479, 38, 26, juce::Justification::centredRight);
 
-    drawScreenBox({294.0f, 479.0f, 58.0f, 26.0f}); // Arp
-    drawScreenBox({460.0f, 479.0f, 68.0f, 26.0f}); // Chord
-    drawScreenBox({616.0f, 479.0f, 36.0f, 26.0f}); // Steps
-    drawScreenBox({734.0f, 479.0f, 54.0f, 26.0f}); // Page
+    drawScreenBox({294.0f, 479.0f, 58.0f, 26.0f});
+    drawScreenBox({460.0f, 479.0f, 68.0f, 26.0f});
+    drawScreenBox({616.0f, 479.0f, 36.0f, 26.0f});
+    drawScreenBox({734.0f, 479.0f, 54.0f, 26.0f});
 }
 
 void Simple106AudioProcessorEditor::focusLost(FocusChangeType) {
+    if (hasKeyboardFocus(true))
+        return;
+
     for (size_t i = 0; i < NUM_QWERTY_KEYS; ++i) {
         if (qwertyDownState[i]) {
             qwertyDownState[i] = false;
@@ -756,6 +803,13 @@ void Simple106AudioProcessorEditor::focusLost(FocusChangeType) {
 }
 
 void Simple106AudioProcessorEditor::timerCallback() {
+    // Only claim keyboard focus if Simple106's native OS window is genuinely the active, focused window
+    if (auto* peer = getPeer()) {
+        if (peer->isFocused() && !hasKeyboardFocus(true) && !saveDialog.isVisible()) {
+            grabKeyboardFocus();
+        }
+    }
+
     buttonKeyboard.setSequencerState(
         audioProcessor.sequencer.isPlaying,
         audioProcessor.sequencer.isRecording,
@@ -793,12 +847,17 @@ void Simple106AudioProcessorEditor::timerCallback() {
 
     buttonKeyboard.setActiveNotes(activeKeys);
 
-    if (!saveDialog.isVisible()) {
+    // Only verify held-key state when this editor actually has keyboard focus
+    if (hasKeyboardFocus(true) && !saveDialog.isVisible() && !juce::ModifierKeys::getCurrentModifiers().isAnyMouseButtonDown()) {
         for (size_t i = 0; i < NUM_QWERTY_KEYS; ++i) {
-            bool isDown = juce::KeyPress::isKeyCurrentlyDown(qwertyMappings[i].keyCode);
-            if (qwertyDownState[i] && !isDown) {
-                qwertyDownState[i] = false;
-                audioProcessor.keyboardState.noteOff(1, qwertyActiveNote[i], 0.0f);
+            if (qwertyDownState[i]) {
+                int code = qwertyMappings[i].keyCode;
+                bool isDown = juce::KeyPress::isKeyCurrentlyDown(code)
+                           || juce::KeyPress::isKeyCurrentlyDown(std::tolower(code));
+                if (!isDown) {
+                    qwertyDownState[i] = false;
+                    audioProcessor.keyboardState.noteOff(1, qwertyActiveNote[i], 0.0f);
+                }
             }
         }
     }
@@ -838,11 +897,13 @@ void Simple106AudioProcessorEditor::setupControl(LabeledSlider& ctrl, const juce
     ctrl.label.setText(labelText, juce::dontSendNotification);
     ctrl.label.setFont(juce::FontOptions(10.5f).withStyle("Bold"));
     ctrl.label.setJustificationType(juce::Justification::centred);
+    ctrl.label.setInterceptsMouseClicks(false, false);
     addAndMakeVisible(ctrl.label);
 
     ctrl.slider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
     ctrl.slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 58, 16);
     ctrl.slider.setWantsKeyboardFocus(false);
+    ctrl.slider.setMouseClickGrabsKeyboardFocus(false);
 
     ctrl.slider.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0x00000000));
     ctrl.slider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(0x00000000));
@@ -858,10 +919,12 @@ void Simple106AudioProcessorEditor::setupBox(juce::ComboBox& box, juce::Label& l
     label.setText(text, juce::dontSendNotification);
     label.setFont(juce::FontOptions(10.5f).withStyle("Bold"));
     label.setJustificationType(juce::Justification::centredLeft);
+    label.setInterceptsMouseClicks(false, false);
     addAndMakeVisible(label);
 
     box.addItemList(items, 1);
     box.setWantsKeyboardFocus(false);
+    box.setMouseClickGrabsKeyboardFocus(false);
     addAndMakeVisible(box);
 
     if (audioProcessor.apvts.getParameter(paramId) != nullptr) {
@@ -871,34 +934,63 @@ void Simple106AudioProcessorEditor::setupBox(juce::ComboBox& box, juce::Label& l
 }
 
 void Simple106AudioProcessorEditor::parentHierarchyChanged() {
-    if (isShowing()) grabKeyboardFocus();
+    if (isShowing() && !saveDialog.isVisible())
+        grabKeyboardFocus();
+}
+
+void Simple106AudioProcessorEditor::visibilityChanged() {
+    if (isShowing() && !saveDialog.isVisible())
+        grabKeyboardFocus();
 }
 
 void Simple106AudioProcessorEditor::mouseDown(const juce::MouseEvent&) {
-    if (!saveDialog.isVisible()) grabKeyboardFocus();
+    if (!saveDialog.isVisible())
+        grabKeyboardFocus();
+}
+
+void Simple106AudioProcessorEditor::mouseUp(const juce::MouseEvent&) {
+    if (!saveDialog.isVisible())
+        grabKeyboardFocus();
+}
+
+bool Simple106AudioProcessorEditor::keyPressed(const juce::KeyPress& key) {
+    return handleKeyPress(key);
 }
 
 bool Simple106AudioProcessorEditor::keyPressed(const juce::KeyPress& key, juce::Component*) {
+    return handleKeyPress(key);
+}
+
+bool Simple106AudioProcessorEditor::keyStateChanged(bool isKeyDown) {
+    return handleKeyStateChanged(isKeyDown);
+}
+
+bool Simple106AudioProcessorEditor::keyStateChanged(bool isKeyDown, juce::Component*) {
+    return handleKeyStateChanged(isKeyDown);
+}
+
+bool Simple106AudioProcessorEditor::handleKeyPress(const juce::KeyPress& key) {
     if (saveDialog.isVisible()) return false;
 
     int keyCode = key.getKeyCode();
-    if (keyCode == 'Z' || keyCode == 'z') {
+    juce::juce_wchar textChar = key.getTextCharacter();
+
+    if (keyCode == 'Z' || keyCode == 'z' || textChar == 'Z' || textChar == 'z') {
         buttonKeyboard.shiftOctave(-1);
         return true;
     }
-    if (keyCode == 'X' || keyCode == 'x') {
+    if (keyCode == 'X' || keyCode == 'x' || textChar == 'X' || textChar == 'x') {
         buttonKeyboard.shiftOctave(1);
         return true;
     }
 
-    if (keyCode >= 'a' && keyCode <= 'z') {
-        keyCode -= ('a' - 'A');
-    }
-
+    int upperCode = std::toupper(keyCode);
+    juce::juce_wchar upperChar = (textChar != 0) ? static_cast<juce::juce_wchar>(std::toupper(textChar)) : 0;
     int baseMidi = 48 + buttonKeyboard.getOctaveOffset();
 
     for (size_t i = 0; i < NUM_QWERTY_KEYS; ++i) {
-        if (keyCode == qwertyMappings[i].keyCode) {
+        int target = qwertyMappings[i].keyCode;
+        if (upperCode == target || upperChar == static_cast<juce::juce_wchar>(target)) {
             if (!qwertyDownState[i]) {
                 qwertyDownState[i] = true;
                 qwertyActiveNote[i] = baseMidi + qwertyMappings[i].semitoneOffset;
@@ -910,14 +1002,18 @@ bool Simple106AudioProcessorEditor::keyPressed(const juce::KeyPress& key, juce::
     return false;
 }
 
-bool Simple106AudioProcessorEditor::keyStateChanged(bool /*isKeyDown*/, juce::Component*) {
+bool Simple106AudioProcessorEditor::handleKeyStateChanged(bool) {
     if (saveDialog.isVisible()) return false;
 
     for (size_t i = 0; i < NUM_QWERTY_KEYS; ++i) {
-        bool isDown = juce::KeyPress::isKeyCurrentlyDown(qwertyMappings[i].keyCode);
-        if (qwertyDownState[i] && !isDown) {
-            qwertyDownState[i] = false;
-            audioProcessor.keyboardState.noteOff(1, qwertyActiveNote[i], 0.0f);
+        if (qwertyDownState[i]) {
+            int code = qwertyMappings[i].keyCode;
+            bool isDown = juce::KeyPress::isKeyCurrentlyDown(code)
+                       || juce::KeyPress::isKeyCurrentlyDown(std::tolower(code));
+            if (!isDown) {
+                qwertyDownState[i] = false;
+                audioProcessor.keyboardState.noteOff(1, qwertyActiveNote[i], 0.0f);
+            }
         }
     }
     return true;
@@ -974,6 +1070,7 @@ void Simple106AudioProcessorEditor::paint(juce::Graphics& g) {
     drawBtnLED(chordToggleBtn.getBounds(), chordToggleBtn.getToggleState());
     if (currentTab == 0) {
         drawBtnLED(cycleBtn.getBounds(), cycleBtn.getToggleState());
+        drawBtnLED(syncBtn.getBounds(), syncBtn.getToggleState());
     }
 }
 
@@ -1071,15 +1168,12 @@ void Simple106AudioProcessorEditor::drawVoiceLED(juce::Graphics& g, float cx, fl
 void Simple106AudioProcessorEditor::resized() {
     renderBackgroundCache();
 
-    // --- HEADER CONTROLS (spread to the right to avoid label overlap) ---
     presetBox.setBounds(155, 8, 145, 26);
     savePresetBtn.setBounds(305, 8, 38, 26);
     initPresetBtn.setBounds(353, 8, 38, 26);
 
     chassisThemeBox.setBounds(460, 8, 135, 26);
     themeBox.setBounds(665, 8, 110, 26);
-
-    // Single page toggle with clearer label.
     pageTabBtn.setBounds(785, 8, 110, 26);
 
     saveDialog.setBounds(getLocalBounds());
@@ -1092,12 +1186,19 @@ void Simple106AudioProcessorEditor::resized() {
     bool isSynth = (currentTab == 0);
 
     auto setSynthVisible = [this](bool v) {
-        dco1Morph.slider.setVisible(v); dco1PWM.slider.setVisible(v); dco1Level.slider.setVisible(v);
-        dco1Morph.label.setVisible(v); dco1PWM.label.setVisible(v); dco1Level.label.setVisible(v);
-        dco2Morph.slider.setVisible(v); dco2PWM.slider.setVisible(v); dco2Level.slider.setVisible(v);
-        dco2Semi.slider.setVisible(v); dco2Cents.slider.setVisible(v);
-        dco2Morph.label.setVisible(v); dco2PWM.label.setVisible(v); dco2Level.label.setVisible(v);
-        dco2Semi.label.setVisible(v); dco2Cents.label.setVisible(v);
+        dco1Morph.slider.setVisible(v); dco1PWM.slider.setVisible(v); dco1Octave.slider.setVisible(v); dco1Fold.slider.setVisible(v); dco1Level.slider.setVisible(v);
+        dco1Morph.label.setVisible(v); dco1PWM.label.setVisible(v); dco1Octave.label.setVisible(v); dco1Fold.label.setVisible(v); dco1Level.label.setVisible(v);
+
+        dco2Morph.slider.setVisible(v); dco2PWM.slider.setVisible(v); dco2Semi.slider.setVisible(v); dco2Cents.slider.setVisible(v); dco2Level.slider.setVisible(v);
+        dco2Morph.label.setVisible(v); dco2PWM.label.setVisible(v); dco2Semi.label.setVisible(v); dco2Cents.label.setVisible(v); dco2Level.label.setVisible(v);
+
+        subLevel.slider.setVisible(v); noiseLevel.slider.setVisible(v); glideTime.slider.setVisible(v);
+        subLevel.label.setVisible(v); noiseLevel.label.setVisible(v); glideTime.label.setVisible(v);
+
+        subOctBox.setVisible(v); subOctLabel.setVisible(v);
+        xmodAmount.slider.setVisible(v); xmodAmount.label.setVisible(v);
+        xmodModeBox.setVisible(v); xmodModeLabel.setVisible(v);
+        syncBtn.setVisible(v);
 
         hpfCutoff.slider.setVisible(v); lpfCutoff.slider.setVisible(v); lpfRes.slider.setVisible(v); envMod.slider.setVisible(v);
         hpfCutoff.label.setVisible(v); lpfCutoff.label.setVisible(v); lpfRes.label.setVisible(v); envMod.label.setVisible(v);
@@ -1107,9 +1208,6 @@ void Simple106AudioProcessorEditor::resized() {
 
         ampA.slider.setVisible(v); ampD.slider.setVisible(v); ampS.slider.setVisible(v); ampR.slider.setVisible(v);
         ampA.label.setVisible(v); ampD.label.setVisible(v); ampS.label.setVisible(v); ampR.label.setVisible(v);
-
-        subLevel.slider.setVisible(v); noiseLevel.slider.setVisible(v); glideTime.slider.setVisible(v);
-        subLevel.label.setVisible(v); noiseLevel.label.setVisible(v); glideTime.label.setVisible(v);
 
         lfo1Rate.slider.setVisible(v); lfo1ToFilt.slider.setVisible(v); lfo1ToPitch.slider.setVisible(v);
         lfo1Rate.label.setVisible(v); lfo1ToFilt.label.setVisible(v); lfo1ToPitch.label.setVisible(v);
@@ -1153,17 +1251,42 @@ void Simple106AudioProcessorEditor::resized() {
     setFXVisible(!isSynth);
 
     if (isSynth) {
-        layoutKnob(dco1Morph, 24, 78, 62); layoutKnob(dco1PWM, 88, 78); layoutKnob(dco1Level, 148, 78);
-        layoutKnob(dco2Morph, 24, 162, 62); layoutKnob(dco2PWM, 88, 162); layoutKnob(dco2Semi, 148, 162); layoutKnob(dco2Cents, 208, 162); layoutKnob(dco2Level, 268, 162);
+        // DCO 1 & DCO 2 (5x5 Alignment)
+        layoutKnob(dco1Morph,  24,  78, 58);
+        layoutKnob(dco1PWM,    88,  78, 58);
+        layoutKnob(dco1Octave, 148, 78, 58);
+        layoutKnob(dco1Fold,   208, 78, 58);
+        layoutKnob(dco1Level,  268, 78, 58);
 
+        layoutKnob(dco2Morph,  24,  162, 58);
+        layoutKnob(dco2PWM,    88,  162, 58);
+        layoutKnob(dco2Semi,   148, 162, 58);
+        layoutKnob(dco2Cents,  208, 162, 58);
+        layoutKnob(dco2Level,  268, 162, 58);
+
+        // HPF & 24dB VCF
         layoutKnob(hpfCutoff, 385, 78); layoutKnob(lpfCutoff, 448, 78); layoutKnob(lpfRes, 511, 78); layoutKnob(envMod, 574, 78);
         layoutKnob(filtA, 385, 162); layoutKnob(filtD, 448, 162); layoutKnob(filtS, 511, 162); layoutKnob(filtR, 574, 162);
 
+        // Envelopes & Master Output
         layoutKnob(ampA, 668, 78); layoutKnob(ampD, 728, 78); layoutKnob(ampS, 788, 78); layoutKnob(ampR, 848, 78);
         playModeLabel.setBounds(668, 162, 70, 14); playModeBox.setBounds(668, 178, 110, 24);
         layoutKnob(masterVol, 830, 162, 64, 68);
 
-        layoutKnob(subLevel, 24, 282); layoutKnob(noiseLevel, 88, 282); layoutKnob(glideTime, 152, 282);
+        // Sub, Noise & X-Mod Section
+        layoutKnob(subLevel,   24,  280, 58, 60);
+        layoutKnob(noiseLevel, 88,  280, 58, 60);
+        layoutKnob(glideTime,  150, 280, 58, 60);
+
+        layoutKnob(xmodAmount, 24, 360, 58, 60);
+
+        subOctLabel.setBounds(88, 348, 56, 14);
+        subOctBox.setBounds(88, 364, 56, 22);
+
+        xmodModeLabel.setBounds(88, 396, 56, 14);
+        xmodModeBox.setBounds(88, 412, 56, 22);
+
+        syncBtn.setBounds(150, 376, 54, 32);
 
         // LFO 1
         lfo1ShapeLabel.setBounds(234, 280, 120, 14);
@@ -1213,7 +1336,7 @@ void Simple106AudioProcessorEditor::resized() {
         layoutKnob(reverbMix, 780, 90, 65, 70);
     }
 
-    // Sequencer & Performance Bar Layout
+    // Sequencer & Keyboard
     seqPlayBtn.setBounds(20, 478, 48, 28);
     seqRecBtn.setBounds(72, 478, 48, 28);
     seqRestBtn.setBounds(124, 478, 48, 28);

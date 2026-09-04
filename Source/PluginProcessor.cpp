@@ -1,4 +1,3 @@
-// Simple106 Synthesizer Engine - Built with JUCE & Linux CMake
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
@@ -6,6 +5,12 @@ Simple106AudioProcessor::Simple106AudioProcessor()
 : AudioProcessor(BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(), true)),
 apvts(*this, nullptr, "Parameters", createParameterLayout())
 {
+    physicalKeysHeld.fill(false);
+    physicalKeyVelocities.fill(0.0f);
+}
+
+Simple106AudioProcessor::~Simple106AudioProcessor() {
+    releaseResources();
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout Simple106AudioProcessor::createParameterLayout() {
@@ -14,16 +19,27 @@ juce::AudioProcessorValueTreeState::ParameterLayout Simple106AudioProcessor::cre
     // DCO 1
     params.push_back(std::make_unique<juce::AudioParameterFloat>("dco1Morph", "DCO1 Morph", 0.0f, 1.0f, 0.33f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("dco1PWM", "DCO1 PWM", 0.05f, 0.95f, 0.5f));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>("dco1Octave", "DCO1 Octave",
+                                                                  juce::StringArray{"32'", "16'", "8'", "4'"}, 2));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("dco1Fold", "DCO1 Fold", 0.0f, 1.0f, 0.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("dco1Level", "DCO1 Level", 0.0f, 1.0f, 0.8f));
 
     // DCO 2
     params.push_back(std::make_unique<juce::AudioParameterFloat>("dco2Morph", "DCO2 Morph", 0.0f, 1.0f, 0.66f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("dco2PWM", "DCO2 PWM", 0.05f, 0.95f, 0.5f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>("dco2Level", "DCO2 Level", 0.0f, 1.0f, 0.6f));
     params.push_back(std::make_unique<juce::AudioParameterInt>("dco2Semi", "DCO2 Semi", -24, 24, 0));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("dco2Cents", "DCO2 Cents", -50.0f, 50.0f, 5.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("dco2Level", "DCO2 Level", 0.0f, 1.0f, 0.6f));
 
-    // Sub & Noise
+    // Inter-Oscillator Sync & Cross-Modulation
+    params.push_back(std::make_unique<juce::AudioParameterBool>("syncMode", "Hard Sync", false));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("xmodAmount", "X-Mod Amount", 0.0f, 1.0f, 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>("xmodMode", "X-Mod Type",
+                                                                  juce::StringArray{"FM", "RING"}, 0));
+
+    // Sub & Noise (Shortened to -1 and -2 for clean display)
+    params.push_back(std::make_unique<juce::AudioParameterChoice>("subOctave", "Sub Octave",
+                                                                  juce::StringArray{"-1", "-2"}, 0));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("subLevel", "Sub Level", 0.0f, 1.0f, 0.3f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("noiseLevel", "Noise Level", 0.0f, 1.0f, 0.0f));
 
@@ -57,7 +73,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout Simple106AudioProcessor::cre
         "Filt Attack", "Filt Decay", "Filt Sustain", "Filt Release",
         "Amp Attack", "Amp Decay", "Amp Sustain", "Amp Release",
         "DCO1 Morph", "DCO1 PWM", "DCO2 Morph", "DCO2 PWM", "DCO2 Semi", "DCO2 Detune",
-        "Sub Level", "Noise Level", "Glide Time", "Master Volume"
+        "Sub Level", "Noise Level", "Glide Time", "Master Volume",
+        "DCO1 Fold", "X-Mod Amount"
     };
 
     // LFO 2
@@ -83,7 +100,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout Simple106AudioProcessor::cre
         params.push_back(std::make_unique<juce::AudioParameterFloat>("vTune" + juce::String(i), "Voice " + juce::String(i) + " Tune", -50.0f, 50.0f, 0.0f));
     }
 
-    // Clean Play Mode Choices
+    // Play Mode Choices
     params.push_back(std::make_unique<juce::AudioParameterChoice>("playMode", "Play Mode",
                                                                   juce::StringArray{"Poly", "Mono", "Unison"}, 0));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("glideTime", "Glide Time", 0.001f, 1.0f, 0.05f));
@@ -103,11 +120,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout Simple106AudioProcessor::cre
     params.push_back(std::make_unique<juce::AudioParameterChoice>("seqPages", "Seq Pages",
                                                                   juce::StringArray{"1 PG [16]", "2 PG [32]", "3 PG [48]", "4 PG [64]"}, 3));
 
-    // ---- UI CHASSIS THEME  ----
+    // UI Chassis Theme
     params.push_back(std::make_unique<juce::AudioParameterChoice>("guiTheme", "Theme",
                                                                   juce::StringArray{"Classic Silver", "Midnight Blue", "Vintage Wood", "Stealth Dark"}, 0));
 
-    // Independent LED colour selector (persists with patches / sessions)
+    // Independent LED Colour Selector
     params.push_back(std::make_unique<juce::AudioParameterChoice>("ledTheme", "LED Colour",
                                                                   juce::StringArray{"Red", "Cyan", "Green", "Amber", "Yellow", "Purple", "White"}, 0));
 
@@ -152,7 +169,6 @@ juce::String Simple106AudioProcessor::createPatchXml(const juce::String& patchNa
     if (root == nullptr) root = std::make_unique<juce::XmlElement>("Simple106Patch");
     root->setAttribute("patchName", patchName);
 
-    // Strip GUI chassis theme and LED color from patch files so user theme preferences are never overwritten
     for (int i = root->getNumChildElements() - 1; i >= 0; --i) {
         auto* child = root->getChildElement(i);
         if (child != nullptr && child->hasTagName("PARAM")) {
@@ -185,13 +201,11 @@ void Simple106AudioProcessor::loadPatchXml(const juce::String& xmlString) {
     sequencer.clearArp();
     voiceManager.allNotesOff();
 
-    // Preserve the user's active chassis theme and LED color preference
     float savedGuiTheme = apvts.getRawParameterValue("guiTheme")->load();
     float savedLedTheme = apvts.getRawParameterValue("ledTheme")->load();
 
     auto xml = juce::XmlDocument::parse(xmlString);
     if (xml != nullptr) {
-        // Strip any legacy theme tags from older patch files
         for (int i = xml->getNumChildElements() - 1; i >= 0; --i) {
             auto* child = xml->getChildElement(i);
             if (child != nullptr && child->hasTagName("PARAM")) {
@@ -206,7 +220,6 @@ void Simple106AudioProcessor::loadPatchXml(const juce::String& xmlString) {
             apvts.replaceState(juce::ValueTree::fromXml(*xml));
         }
 
-        // Restore user's preferred theme and color settings
         if (auto* pGui = apvts.getParameter("guiTheme"))
             pGui->setValueNotifyingHost(pGui->convertTo0to1(savedGuiTheme));
         if (auto* pLed = apvts.getParameter("ledTheme"))
@@ -244,20 +257,26 @@ void Simple106AudioProcessor::loadFactoryPreset(int presetIndex) {
             p->setValueNotifyingHost(p->convertTo0to1(val));
     };
 
-    // --- 1. FULL BASELINE RESET FOR ALL PRESETS ---
+    // Full Baseline Reset
     setParam("arpEnable", 0.0f);
     setParam("arpMode", 0.0f);
     setParam("chordEnable", 0.0f);
     setParam("chordType", 0.0f);
     setParam("cycleMode", 0.0f);
-    setParam("playMode", 0.0f);       // Poly
-    setParam("voiceVarMode", 0.0f);   // Panning mode
+    setParam("playMode", 0.0f);
+    setParam("voiceVarMode", 0.0f);
 
-    // Clean Voice Variation Knobs (Center all pans, 0 all tuning offsets)
     for (int i = 1; i <= 6; ++i) {
         setParam("vPan" + juce::String(i), 0.0f);
         setParam("vTune" + juce::String(i), 0.0f);
     }
+
+    setParam("dco1Octave", 2.0f); // 8'
+    setParam("dco1Fold", 0.0f);
+    setParam("syncMode", 0.0f);
+    setParam("xmodAmount", 0.0f);
+    setParam("xmodMode", 0.0f);
+    setParam("subOctave", 0.0f); // -1
 
     setParam("subLevel", 0.0f);
     setParam("noiseLevel", 0.0f);
@@ -271,7 +290,6 @@ void Simple106AudioProcessor::loadFactoryPreset(int presetIndex) {
     setParam("lfo3Target", 0.0f);
     setParam("delayPingPong", 1.0f);
 
-    // --- 2. APPLY PRESET-SPECIFIC SETTINGS ---
     switch (presetIndex) {
         case 0: // 01. Init Poly
             setParam("dco1Morph", 0.33f); setParam("dco1Level", 0.8f);
@@ -310,7 +328,8 @@ void Simple106AudioProcessor::loadFactoryPreset(int presetIndex) {
         case 4: // 05. Acid 106 Lead
             setParam("playMode", 1.0f); // Mono
             setParam("glideTime", 0.06f);
-            setParam("dco1Morph", 0.33f); setParam("dco1Level", 0.9f); setParam("dco2Level", 0.0f); setParam("subLevel", 0.5f);
+            setParam("dco1Morph", 0.33f); setParam("dco1Level", 0.9f); setParam("dco2Level", 0.0f);
+            setParam("subLevel", 0.5f); setParam("subOctave", 1.0f); // -2
             setParam("lpfCutoff", 1200.0f); setParam("lpfRes", 0.75f); setParam("envMod", 0.8f);
             setParam("filtAttack", 0.01f); setParam("filtDecay", 0.25f); setParam("filtSustain", 0.0f); setParam("filtRelease", 0.1f);
             setParam("ampAttack", 0.005f); setParam("ampDecay", 0.3f); setParam("ampSustain", 0.7f); setParam("ampRelease", 0.2f);
@@ -318,7 +337,7 @@ void Simple106AudioProcessor::loadFactoryPreset(int presetIndex) {
             break;
 
         case 5: // 06. 80s Arp Dream
-            setParam("arpEnable", 1.0f); setParam("arpMode", 2.0f); // U-D
+            setParam("arpEnable", 1.0f); setParam("arpMode", 2.0f);
             setParam("dco1Morph", 0.5f); setParam("dco1PWM", 0.6f); setParam("dco1Level", 0.8f);
             setParam("dco2Morph", 0.33f); setParam("dco2Level", 0.5f); setParam("dco2Semi", 12.0f);
             setParam("lpfCutoff", 2800.0f); setParam("lpfRes", 0.35f); setParam("envMod", 0.55f);
@@ -327,7 +346,7 @@ void Simple106AudioProcessor::loadFactoryPreset(int presetIndex) {
             break;
 
         case 6: // 07. MonoPoly 6-Voice Drift
-            setParam("cycleMode", 1.0f); // Voice Cycle ON
+            setParam("cycleMode", 1.0f);
             setParam("dco1Morph", 0.33f); setParam("dco1Level", 0.8f);
             setParam("dco2Morph", 0.7f); setParam("dco2Level", 0.6f); setParam("dco2Cents", 15.0f);
             setParam("vPan1", -0.8f); setParam("vPan2", 0.8f); setParam("vPan3", -0.4f);
@@ -337,7 +356,7 @@ void Simple106AudioProcessor::loadFactoryPreset(int presetIndex) {
             break;
 
         case 7: // 08. Space Pluck
-            setParam("dco1Morph", 0.0f); setParam("dco1Level", 0.9f); // Triangle
+            setParam("dco1Morph", 0.0f); setParam("dco1Level", 0.9f);
             setParam("dco2Morph", 0.8f); setParam("dco2Level", 0.4f); setParam("dco2Semi", 7.0f);
             setParam("lpfCutoff", 2200.0f); setParam("lpfRes", 0.4f); setParam("envMod", 0.7f);
             setParam("filtAttack", 0.001f); setParam("filtDecay", 0.2f); setParam("filtSustain", 0.0f);
@@ -357,6 +376,7 @@ void Simple106AudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlo
     reverb.prepare(sampleRate, samplesPerBlock);
     sequencer.setSampleRate(sampleRate);
     keyboardState.reset();
+    midiCollector.reset(sampleRate);
 
     physicalKeysHeld.fill(false);
     physicalKeyVelocities.fill(0.0f);
@@ -394,6 +414,7 @@ void Simple106AudioProcessor::releaseResources() {
 }
 
 void Simple106AudioProcessor::handleIncomingMidiMessage(juce::MidiInput*, const juce::MidiMessage& message) {
+    midiCollector.addMessageToQueue(message);
     keyboardState.processNextMidiEvent(message);
 }
 
@@ -408,7 +429,6 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
     for (auto i = 0; i < totalNumOutputChannels; ++i)
         buffer.clear(i, 0, buffer.getNumSamples());
 
-    // Host DAW Transport & BPM Tracking
     double hostBpm = 120.0;
     bool isHostPlaying = false;
     double ppqPos = 0.0;
@@ -422,7 +442,6 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
     }
     sequencer.setTempo(static_cast<float>(hostBpm));
 
-    // DAW Play/Stop Synchronization
     if (isHostPlaying != lastHostPlaying) {
         sequencer.isPlaying = isHostPlaying;
         if (isHostPlaying) {
@@ -432,27 +451,37 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
         lastHostPlaying = isHostPlaying;
     }
 
-    // Inject keyboard events into MIDI stream
+    // Merge incoming hardware MIDI events queued by handleIncomingMidiMessage
+    midiCollector.removeNextBlockOfMessages(midiMessages, buffer.getNumSamples());
+
+    // Inject GUI/QWERTY generated events and keep keyboard visual state synchronised
     keyboardState.processNextMidiBuffer(midiMessages, 0, buffer.getNumSamples(), true);
 
     // 1. Fetch Parameters
-    float d1Morph = apvts.getRawParameterValue("dco1Morph")->load();
-    float d1PWM   = apvts.getRawParameterValue("dco1PWM")->load();
-    float d1Level = apvts.getRawParameterValue("dco1Level")->load();
+    float d1Morph  = apvts.getRawParameterValue("dco1Morph")->load();
+    float d1PWM    = apvts.getRawParameterValue("dco1PWM")->load();
+    int   d1Octave = static_cast<int>(apvts.getRawParameterValue("dco1Octave")->load());
+    float d1Fold   = apvts.getRawParameterValue("dco1Fold")->load();
+    float d1Level  = apvts.getRawParameterValue("dco1Level")->load();
 
-    float d2Morph = apvts.getRawParameterValue("dco2Morph")->load();
-    float d2PWM   = apvts.getRawParameterValue("dco2PWM")->load();
-    float d2Level = apvts.getRawParameterValue("dco2Level")->load();
-    int   d2Semi  = static_cast<int>(apvts.getRawParameterValue("dco2Semi")->load());
-    float d2Cents = apvts.getRawParameterValue("dco2Cents")->load();
+    float d2Morph  = apvts.getRawParameterValue("dco2Morph")->load();
+    float d2PWM    = apvts.getRawParameterValue("dco2PWM")->load();
+    float d2Level  = apvts.getRawParameterValue("dco2Level")->load();
+    int   d2Semi   = static_cast<int>(apvts.getRawParameterValue("dco2Semi")->load());
+    float d2Cents  = apvts.getRawParameterValue("dco2Cents")->load();
 
-    float subLvl  = apvts.getRawParameterValue("subLevel")->load();
-    float nseLvl  = apvts.getRawParameterValue("noiseLevel")->load();
+    bool  syncOn   = apvts.getRawParameterValue("syncMode")->load() > 0.5f;
+    float xmodAmt  = apvts.getRawParameterValue("xmodAmount")->load();
+    int   xmodM    = static_cast<int>(apvts.getRawParameterValue("xmodMode")->load());
 
-    float hpfCut  = apvts.getRawParameterValue("hpfCutoff")->load();
-    float lpfCut  = apvts.getRawParameterValue("lpfCutoff")->load();
-    float lpfRes  = apvts.getRawParameterValue("lpfRes")->load();
-    float envMod  = apvts.getRawParameterValue("envMod")->load();
+    int   subOct   = static_cast<int>(apvts.getRawParameterValue("subOctave")->load());
+    float subLvl   = apvts.getRawParameterValue("subLevel")->load();
+    float nseLvl   = apvts.getRawParameterValue("noiseLevel")->load();
+
+    float hpfCut   = apvts.getRawParameterValue("hpfCutoff")->load();
+    float lpfCut   = apvts.getRawParameterValue("lpfCutoff")->load();
+    float lpfRes   = apvts.getRawParameterValue("lpfRes")->load();
+    float envMod   = apvts.getRawParameterValue("envMod")->load();
 
     float aA = apvts.getRawParameterValue("ampAttack")->load();
     float aD = apvts.getRawParameterValue("ampDecay")->load();
@@ -480,13 +509,12 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
     float lfo3Amount = apvts.getRawParameterValue("lfo3Amount")->load();
     int   lfo3Target = static_cast<int>(apvts.getRawParameterValue("lfo3Target")->load());
 
-    // Performance Modes
+    // Modes
     bool arpOn     = apvts.getRawParameterValue("arpEnable")->load() > 0.5f;
     int  arpIdx    = static_cast<int>(apvts.getRawParameterValue("arpMode")->load());
     bool chordOn   = apvts.getRawParameterValue("chordEnable")->load() > 0.5f;
     int  chordIdx  = static_cast<int>(apvts.getRawParameterValue("chordType")->load());
 
-    // Delay Sync Timings
     int   delaySyncIdx = static_cast<int>(apvts.getRawParameterValue("delaySync")->load());
     float dFb          = apvts.getRawParameterValue("delayFeedback")->load();
     float dDamp        = apvts.getRawParameterValue("delayDamp")->load();
@@ -519,7 +547,7 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
     float glide     = apvts.getRawParameterValue("glideTime")->load();
     float masterVol = apvts.getRawParameterValue("masterVolume")->load();
 
-    int varMode    = static_cast<int>(apvts.getRawParameterValue("voiceVarMode")->load());
+    int varMode     = static_cast<int>(apvts.getRawParameterValue("voiceVarMode")->load());
     bool cycleOn    = apvts.getRawParameterValue("cycleMode")->load() > 0.5f;
 
     // 2. Configure Modules
@@ -546,20 +574,18 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
     delay.setParameters(finalDelayTimeSec, dFb, dDamp, dMix, dPingPong);
     reverb.setParameters(rSize, rDamp, rMix);
 
-    // Baseline envelope parameter update once per block (avoids 1,000,000+ std::exp calls/sec!)
     for (auto& voice : voiceManager.getVoices()) {
         voice.ampEnv.setParameters(aA, aD, aS, aR);
         voice.filterEnv.setParameters(fA, fD, fS, fR);
     }
 
-    // Apply Voice Variation (Mode-dependent: Pan vs Tune)
     auto& voices = voiceManager.getVoices();
     for (int i = 0; i < 6; ++i) {
-        if (varMode == 0) { // PANNING
+        if (varMode == 0) {
             float pVal = apvts.getRawParameterValue("vPan" + juce::String(i + 1))->load();
             voices[i].setVoicePan(pVal);
             voices[i].setVoiceTuneOffset(0.0f);
-        } else { // TUNING
+        } else {
             float tVal = apvts.getRawParameterValue("vTune" + juce::String(i + 1))->load();
             voices[i].setVoicePan(0.0f);
             voices[i].setVoiceTuneOffset(tVal);
@@ -637,7 +663,7 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
         lastPlayMode = playM;
     }
 
-    // 4. Process Incoming MIDI Stream
+    // 4. MIDI Processing
     for (const auto metadata : midiMessages) {
         auto msg = metadata.getMessage();
         int noteNum = msg.getNoteNumber();
@@ -686,7 +712,25 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
                     voiceManager.allNotesOff();
                 }
             } else {
+                if (chordOn) {
+                    auto chordNotes = voiceManager.getChordIntervals(noteNum);
+                    for (int cn : chordNotes) {
+                        voiceManager.handleNoteOff(cn);
+                    }
+                }
                 voiceManager.handleNoteOff(noteNum);
+            }
+
+            bool anyHeld = false;
+            for (bool h : physicalKeysHeld) {
+                if (h) { anyHeld = true; break; }
+            }
+            if (!anyHeld && !arpOn && !sequencer.isPlaying) {
+                for (auto& v : voiceManager.getVoices()) {
+                    if (v.isActive()) {
+                        v.noteOff();
+                    }
+                }
             }
         } else if (msg.isAllNotesOff() || msg.isAllSoundOff() || msg.isResetAllControllers()) {
             physicalKeysHeld.fill(false);
@@ -698,7 +742,7 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
         }
     }
 
-    // 5. Arpeggiator Clock Processing
+    // 5. Arp Clock
     int arpNote = -1;
     float arpVel = 0.85f;
     bool arpOff = false;
@@ -721,7 +765,7 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
         }
     }
 
-    // 6. Sequencer Clock Processing
+    // 6. Sequencer Clock
     int seqNote = -1;
     float seqVel = 0.8f;
     bool seqOff = false;
@@ -740,14 +784,13 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
         voiceManager.allNotesOff();
     }
 
-    // 7. Render Audio Block
+    // 7. Audio Render Loop
     auto* outL = buffer.getWritePointer(0);
     auto* outR = buffer.getWritePointer(1);
 
     bool lfoModulatesEnvelopes = (lfo2Target >= 5 && lfo2Target <= 12 && lfo2Amount > 0.001f) ||
                                  (lfo3Target >= 5 && lfo3Target <= 12 && lfo3Amount > 0.001f);
 
-    // Constant analog-style summing bus gain (calibrated for +15% boost with zero deactivation clicks)
     float gainComp = (playM == 2) ? 0.35f : 0.48f;
 
     for (int sample = 0; sample < buffer.getNumSamples(); ++sample) {
@@ -761,10 +804,11 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
         float modEnvMod   = envMod;
         float modFiltA    = fA, modFiltD = fD, modFiltS = fS, modFiltR = fR;
         float modAmpA     = aA, modAmpD = aD, modAmpS = aS, modAmpR = aR;
-        float modD1Morph  = d1Morph, modD1PWM = d1PWM;
+        float modD1Morph  = d1Morph, modD1PWM = d1PWM, modD1Fold = d1Fold;
         float modD2Morph  = d2Morph, modD2PWM = d2PWM;
         int   modD2Semi   = d2Semi;
         float modD2Cents  = d2Cents;
+        float modXMod     = xmodAmt;
         float modSub      = subLvl, modNoise = nseLvl;
         float modGlide    = glide;
         float modMaster   = masterVol;
@@ -793,6 +837,8 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
                 case 20: modNoise   = std::clamp(modNoise + modVal * 0.5f, 0.0f, 1.0f); break;
                 case 21: modGlide   = std::clamp(modGlide + modVal * 0.4f, 0.001f, 1.0f); break;
                 case 22: modMaster  = std::clamp(modMaster + modVal * 0.4f, 0.0f, 1.0f); break;
+                case 23: modD1Fold  = std::clamp(modD1Fold + modVal * 0.5f, 0.0f, 1.0f); break;
+                case 24: modXMod    = std::clamp(modXMod + modVal * 0.5f, 0.0f, 1.0f); break;
                 default: break;
             }
         };
@@ -800,7 +846,6 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
         applyModTarget(lfo2Target, lfo2Val);
         applyModTarget(lfo3Target, lfo3Val);
 
-        // Sub-block update only when an LFO is actively modulating envelope stages
         if (lfoModulatesEnvelopes && (sample & 31) == 0) {
             for (auto& voice : voiceManager.getVoices()) {
                 voice.ampEnv.setParameters(modAmpA, modAmpD, modAmpS, modAmpR);
@@ -813,9 +858,10 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
         for (auto& voice : voiceManager.getVoices()) {
             float vL = 0.0f, vR = 0.0f;
             voice.process(
-                modD1Morph, modD1PWM, d1Level,
+                modD1Morph, modD1PWM, d1Octave, modD1Fold, d1Level,
                 modD2Morph, modD2PWM, d2Level, modD2Semi, modD2Cents,
-                modSub, modNoise,
+                syncOn, modXMod, xmodM,
+                subOct, modSub, modNoise,
                 modHpf, modCutoff, modRes, modEnvMod,
                 lfo1Val, lfo1ToFilt, lfo1ToPitch,
                 vL, vR
@@ -835,7 +881,6 @@ void Simple106AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
 
         reverb.process(delL, delR);
 
-        // Smooth analog tape saturation: mathematically bounded in (-1, 1), zero hard clipping
         auto softSaturate = [](float x) -> float {
             return std::tanh(x);
         };

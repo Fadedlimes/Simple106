@@ -1,16 +1,16 @@
 #pragma once
+
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "PluginProcessor.h"
 #include "UI/SilverLookAndFeel.h"
 #include "UI/VintageButtonKeyboard.h"
 #include <array>
-#include <vector>
 #include <memory>
 #include <functional>
 
 struct LEDTheme {
-    const char* name;
+    juce::String name;
     juce::Colour primary;
     juce::Colour glow;
     juce::Colour highlight;
@@ -18,106 +18,129 @@ struct LEDTheme {
     juce::Colour unlitBg;
 };
 
-// Dedicated Modal Save Patch Dialog
 class SavePatchDialog : public juce::Component {
 public:
     SavePatchDialog(std::function<void(const juce::String&)> onSave, std::function<void()> onCancel);
-
+    void open();
     void paint(juce::Graphics& g) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent&) override;
-    void open();
-
-    juce::TextEditor patchNameEditor;
-    juce::TextButton confirmSaveBtn { "SAVE" };
-    juce::TextButton cancelSaveBtn  { "CANCEL" };
 
 private:
+    juce::TextEditor patchNameEditor;
+    juce::TextButton confirmSaveBtn { "SAVE" };
+    juce::TextButton cancelSaveBtn { "CANCEL" };
     std::function<void(const juce::String&)> saveCallback;
     std::function<void()> cancelCallback;
 };
 
 class Simple106AudioProcessorEditor : public juce::AudioProcessorEditor,
-    public juce::KeyListener,
-    public juce::Timer {
+                                      public juce::KeyListener,
+                                      private juce::Timer
+{
 public:
-    explicit Simple106AudioProcessorEditor(Simple106AudioProcessor&);
+    static constexpr int NUM_CHASSIS_THEMES = 4;
+    static constexpr int NUM_QWERTY_KEYS = 16;
+
+    explicit Simple106AudioProcessorEditor (Simple106AudioProcessor&);
     ~Simple106AudioProcessorEditor() override;
 
-    void paint(juce::Graphics&) override;
+    void paint (juce::Graphics&) override;
     void resized() override;
-    void parentHierarchyChanged() override;
-    void mouseDown(const juce::MouseEvent&) override;
-    void focusLost(FocusChangeType) override;
+
     void timerCallback() override;
+    void focusLost (FocusChangeType) override;
+    void parentHierarchyChanged() override;
+    void visibilityChanged() override;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
 
-    bool keyPressed(const juce::KeyPress& key, juce::Component* originatingComponent) override;
-    bool keyStateChanged(bool isKeyDown, juce::Component* originatingComponent) override;
+    // Dual Component & KeyListener Overrides
+    bool keyPressed (const juce::KeyPress& key) override;
+    bool keyPressed (const juce::KeyPress& key, juce::Component* originatingComponent) override;
+    bool keyStateChanged (bool isKeyDown) override;
+    bool keyStateChanged (bool isKeyDown, juce::Component* originatingComponent) override;
 
-    void refreshPresetList();
-    void updateUIFromParameters();
+    const LEDTheme& getActiveTheme() const {
+        return ledThemes[juce::jlimit(0, 6, currentThemeIdx)];
+    }
+
+    const ChassisTheme& getChassisTheme() const {
+        return chassisThemes[juce::jlimit(0, NUM_CHASSIS_THEMES - 1, currentChassisThemeIdx)];
+    }
 
 private:
-    Simple106AudioProcessor& audioProcessor;
-    SilverLookAndFeel silverLookAndFeel;
-
-    // Hardware background cache
-    juce::Image backgroundCache;
-    void renderBackgroundCache();
-
-    // UI Theme (Chassis)
-    int currentChassisThemeIdx = 0;
-    juce::ComboBox chassisThemeBox;   // The THEME dropdown
-    const ChassisTheme& getChassisTheme() const {
-        int idx = juce::jlimit(0, NUM_CHASSIS_THEMES - 1, currentChassisThemeIdx);
-        return chassisThemes[idx];
-    }
-    void applyChassisTheme();
-    void applyComboTextColours();
-    void applyValueTextColours();
-
-    // LED Theme (Independent COLOUR selector)
-    int currentThemeIdx = 0;
-    static const LEDTheme ledThemes[7];
-    const LEDTheme& getActiveTheme() const {
-        int idx = juce::jlimit(0, 6, currentThemeIdx);
-        return ledThemes[idx];
-    }
-
-    // Header Controls
-    juce::ComboBox presetBox;
-    juce::TextButton savePresetBtn { "SAVE" };
-    juce::TextButton initPresetBtn { "INIT" };
-    juce::ComboBox themeBox;         // COLOUR (LED) selector
-
-    // Single page toggle instead of separate SYNTH / FX buttons
-    juce::TextButton pageTabBtn { "SYNTH/FX" };
-
-    // Save Patch Modal Dialog
-    SavePatchDialog saveDialog;
-    void showSaveDialog();
-    void hideSaveDialog();
-    void performSave(const juce::String& name);
-
-    // Tabs
-    int currentTab = 0;
-
     struct LabeledSlider {
         juce::Slider slider;
         juce::Label label;
     };
 
-    // --- SYNTH PAGE CONTROLS ---
-    LabeledSlider dco1Morph, dco1PWM, dco1Level;
+    bool handleKeyPress (const juce::KeyPress& key);
+    bool handleKeyStateChanged (bool isKeyDown);
+
+    void setupControl (LabeledSlider& ctrl, const juce::String& paramId, const juce::String& labelText);
+    void setupBox (juce::ComboBox& box, juce::Label& label, const juce::String& paramId, const juce::String& text, const juce::StringArray& items);
+    void updateVoiceKnobAttachments();
+    void applyChassisTheme();
+    void applyComboTextColours();
+    void applyValueTextColours();
+    void showSaveDialog();
+    void hideSaveDialog();
+    void performSave (const juce::String& rawName);
+    void refreshPresetList();
+    void renderBackgroundCache();
+    void updateUIFromParameters();
+    float getSafeParamValue (const juce::String& paramId, float fallback = 0.0f) const;
+
+    void drawSegmentedString (juce::Graphics& g, float x, float y, float w, float h, const juce::String& text);
+    void draw14SegmentChar (juce::Graphics& g, float x, float y, float w, float h, char c);
+    void drawVoiceLED (juce::Graphics& g, float cx, float cy, bool on);
+
+    Simple106AudioProcessor& audioProcessor;
+    SilverLookAndFeel silverLookAndFeel;
+
+    // Header Controls
+    juce::ComboBox presetBox;
+    juce::TextButton savePresetBtn { "SAVE" };
+    juce::TextButton initPresetBtn { "INIT" };
+    juce::ComboBox chassisThemeBox;
+    juce::ComboBox themeBox;
+    juce::TextButton pageTabBtn { "SYNTH/FX" };
+
+    // DCO 1
+    LabeledSlider dco1Morph, dco1PWM, dco1Octave, dco1Fold, dco1Level;
+
+    // DCO 2
     LabeledSlider dco2Morph, dco2PWM, dco2Semi, dco2Cents, dco2Level;
-    LabeledSlider subLevel, noiseLevel;
+
+    // Sub, Noise, X-Mod, Sync
+    LabeledSlider subLevel, noiseLevel, glideTime, xmodAmount;
+    juce::ComboBox subOctBox, xmodModeBox;
+    juce::Label subOctLabel, xmodModeLabel;
+    juce::TextButton syncBtn { "SYNC" };
+
+    // Filters
     LabeledSlider hpfCutoff, lpfCutoff, lpfRes, envMod;
-    LabeledSlider ampA, ampD, ampS, ampR;
+
+    // Envelopes & Master
     LabeledSlider filtA, filtD, filtS, filtR;
+    LabeledSlider ampA, ampD, ampS, ampR;
+    juce::ComboBox playModeBox;
+    juce::Label playModeLabel;
+    LabeledSlider masterVol;
+
+    // LFO 1, 2, 3
     LabeledSlider lfo1Rate, lfo1ToFilt, lfo1ToPitch;
+    juce::ComboBox lfo1ShapeBox;
+    juce::Label lfo1ShapeLabel;
+
     LabeledSlider lfo2Rate, lfo2Amount;
+    juce::ComboBox lfo2ShapeBox, lfo2TargetBox;
+    juce::Label lfo2ShapeLabel, lfo2TargetLabel;
+
     LabeledSlider lfo3Rate, lfo3Amount;
-    LabeledSlider glideTime, masterVol;
+    juce::ComboBox lfo3ShapeBox, lfo3TargetBox;
+    juce::Label lfo3ShapeLabel, lfo3TargetLabel;
 
     // Voice Variation Matrix
     LabeledSlider voiceKnobs[6];
@@ -125,63 +148,58 @@ private:
     juce::Label voiceVarLabel;
     juce::TextButton cycleBtn { "CYCLE" };
 
-    // Dropdowns
-    juce::ComboBox playModeBox, lfo1ShapeBox, lfo2ShapeBox, lfo2TargetBox, lfo3ShapeBox, lfo3TargetBox;
-    juce::Label playModeLabel, lfo1ShapeLabel, lfo2ShapeLabel, lfo2TargetLabel, lfo3ShapeLabel, lfo3TargetLabel;
+    // Master FX
+    juce::Label chorusLabel;
+    juce::ComboBox chorusModeBox;
 
-    // --- MASTER FX CONTROLS ---
-    juce::ComboBox chorusModeBox, delaySyncBox;
-    juce::Label chorusLabel, delaySyncLabel;
-
+    juce::Label delaySyncLabel;
+    juce::ComboBox delaySyncBox;
     LabeledSlider delayTime, delayFb, delayDamp, delayMix;
-    juce::ToggleButton delayPingPongBtn { "PING-PONG" };
+    juce::TextButton delayPingPongBtn { "PING PONG" };
 
     LabeledSlider reverbSize, reverbDamp, reverbMix;
 
-    // --- SEQUENCER & PERFORMANCE CONTROL BAR ---
-    VintageButtonKeyboard buttonKeyboard;
-
-    juce::TextButton seqPlayBtn  { "PLAY" };
-    juce::TextButton seqRecBtn   { "REC" };
-    juce::TextButton seqRestBtn  { "REST" };
+    // Sequencer, Arp & Keyboard Controls
+    juce::TextButton seqPlayBtn { "PLAY" };
+    juce::TextButton seqRecBtn  { "REC" };
+    juce::TextButton seqRestBtn { "REST" };
     juce::TextButton seqClearBtn { "CLR" };
 
     juce::TextButton arpToggleBtn { "ARP" };
-    juce::TextButton arpPrevBtn   { "<" };
-    juce::TextButton arpNextBtn   { ">" };
-    int currentArpIdx = 0;
+    juce::TextButton arpPrevBtn { "<" };
+    juce::TextButton arpNextBtn { ">" };
 
     juce::TextButton chordToggleBtn { "CHORD" };
-    juce::TextButton chordPrevBtn   { "<" };
-    juce::TextButton chordNextBtn   { ">" };
-    int currentChordIdx = 0;
+    juce::TextButton chordPrevBtn { "<" };
+    juce::TextButton chordNextBtn { ">" };
 
     juce::TextButton stepsPrevBtn { "<" };
     juce::TextButton stepsNextBtn { ">" };
-    int currentPagesIdx = 3;
-
     juce::TextButton pagePrevBtn { "<" };
     juce::TextButton pageNextBtn { ">" };
+
+    VintageButtonKeyboard buttonKeyboard;
+    SavePatchDialog saveDialog;
+
+    juce::Image backgroundCache;
+
+    std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> sliderAttachments;
+    std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>> boxAttachments;
+    std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>> btnAttachments;
+    std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> voiceAttachments;
+
+    int currentTab = 0;
+    int currentThemeIdx = 0;
+    int currentChassisThemeIdx = 0;
+    int currentArpIdx = 0;
+    int currentChordIdx = 0;
+    int currentPagesIdx = 3;
     int currentSeqPage = 0;
 
-    // QWERTY tracking
-    static constexpr size_t NUM_QWERTY_KEYS = 16;
     std::array<bool, NUM_QWERTY_KEYS> qwertyDownState { false };
     std::array<int, NUM_QWERTY_KEYS> qwertyActiveNote { 0 };
 
-    std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> sliderAttachments;
-    std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> voiceAttachments;
-    std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>> boxAttachments;
-    std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>> btnAttachments;
+    static const LEDTheme ledThemes[7];
 
-    void setupControl(LabeledSlider& ctrl, const juce::String& paramId, const juce::String& labelText);
-    void setupBox(juce::ComboBox& box, juce::Label& label, const juce::String& paramId, const juce::String& text, const juce::StringArray& items);
-    void updateVoiceKnobAttachments();
-    void drawVoiceLED(juce::Graphics& g, float cx, float cy, bool on);
-    void drawSegmentedString(juce::Graphics& g, float x, float y, float w, float h, const juce::String& text);
-    void draw14SegmentChar(juce::Graphics& g, float x, float y, float w, float h, char c);
-
-    float getSafeParamValue(const juce::String& paramId, float fallback = 0.0f) const;
-
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Simple106AudioProcessorEditor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Simple106AudioProcessorEditor)
 };
