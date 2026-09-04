@@ -6,11 +6,9 @@
 ![Version](https://img.shields.io/badge/Version-v1.1.2-green)
 ![License](https://img.shields.io/badge/License-GPLv3-lightgrey)
 
-**Simple106** is a versatile 6-voice polyphonic synthesizer plugin and standalone instrument. Designed with the tactile aesthetic and immediacy of classic 80s/90s silver-box electronic hardware, it blends the analog warmth of digitally controlled oscillators, lush chorus effects, and per-voice variation with modern performance tools like a 64-step sequencer, chord engine, and multi-mode arpeggiator.
+**Simple106** is a versatile 6-voice polyphonic synthesizer plugin and standalone instrument. Designed with the tactile aesthetic and immediacy of classic 80s/90s silver-box electronic hardware, it blends the analog warmth of digitally controlled oscillators, rich diode wavefolding, audio-rate cross-modulation, lush stereo BBD chorus, and discrete voice variation with modern performance tools like a 64-step sequencer, chord engine, and multi-mode arpeggiator.
 
 <img width="920" height="639" alt="image" src="https://github.com/user-attachments/assets/6df81ea4-26aa-4e53-b818-b47371cc58d2" />
-
-
 
 ---
 
@@ -20,72 +18,106 @@
 
 While the 303 and 606 were modeled directly after existing hardware legends, no polyphonic silver-box sibling ever existed. Simple106 began as a fictional "what if" concept: *What if there was a compact, accessible polyphonic synthesizer that bedroom producers in the 90s could have picked up at a local pawn shop to accompany their basslines and rhythm machines?*
 
-During development, the design quickly evolved far beyond a basic budget synth into a hybrid synthesizer taking inspiration from multiple 80s and 90s polyphonic classics:
-* **The Warmth & Grit:** Real-time PolyBLEP DCOs paired with a rich, resonant 24dB 4-pole low-pass filter and high-pass stage.
-* **The Space:** Authentic dual-mode stereo bucket-brigade (BBD) chorus.
+During development, the design quickly evolved far beyond a basic budget synth into an analog-modeling powerhouse drawing inspiration from multiple 80s and 90s polyphonic classics:
+* **The Warmth & Grit:** Real-time PolyBLEP anti-aliased DCOs paired with a West Coast diode wavefolder and a rich, resonant 24dB 4-pole low-pass filter with high-pass stage.
+* **The Inter-Oscillator Power:** Phase-aligned hard sync, audio-rate FM, and 4-quadrant analog ring modulation.
+* **The Space:** Authentic dual-mode stereo bucket-brigade (BBD) chorus, ping-pong delay, and algorithmic plate/room reverb.
 * **The Voice Matrix:** An Oberheim / Korg Mono/Poly-inspired voice variation system offering discrete per-voice panning, micro-pitch drift, and circular round-robin voice cycling.
 
 ---
 
 ## ✨ Features
 
-### 🔊 Sound Engine & Oscillators
-* **6 Polyphonic Voices** with full polyphony, monophonic legato glide, and a stacked 6-voice **Unison** mode with supersaw detune spread.
-* **Dual DCOs per Voice:** Real-time, sample-accurate **PolyBLEP** anti-aliased waveform generation.
-* **Continuous Waveform Morphing:** Seamlessly sweep between **Triangle $\rightarrow$ Sawtooth $\rightarrow$ Square $\rightarrow$ Variable Pulse**.
-* **Pulse Width Modulation (PWM):** Dedicated pulse width depth and modulation controls.
-* **DCO 2 Tuning:** Coarse tuning ($\pm24$ semitones) and fine detuning ($\pm50$ cents).
-* **Mixer Section:** Blend DCO 1, DCO 2, Sub-Oscillator ($-1$ octave square wave), and White Noise.
+### 🔊 Dual DCO Sound Engine (5×5 Panel Symmetry)
+* **6 Polyphonic Voices** with true polyphony, legato glide portamento, and a stacked 6-voice **Unison** mode with supersaw detune spread.
+* **Real-time PolyBLEP Anti-Aliasing:** Band-limited step and ramp residuals provide clean, high-frequency response with zero aliasing across the entire keyboard.
+* **DCO 1 (Master / Core Oscillator):**
+  * **Continuous Waveform Morphing:** Smoothly sweep through `Triangle` $\rightarrow$ `Sawtooth` $\rightarrow$ `Square` $\rightarrow$ `Variable Pulse`.
+  * **Dedicated Pulse Width (PWM):** Variable pulse width ranging from `5%` to `95%`.
+  * **Footage Selector:** 4-position stepped octave switch (`32'`, `16'`, `8'`, `4'`).
+  * **Diode Wavefolder (`Fold`):** Diode-modeled West Coast folding circuit using rational non-linear saturation to inject woody, reedy, and acoustic acoustic harmonics.
+  * **Level Slider:** Independent level attenuation (`0.0` to `1.0`).
+* **DCO 2 (Slave / Modulator Oscillator):**
+  * **Continuous Waveform Morphing:** Independent sweep through `Triangle` $\rightarrow$ `Sawtooth` $\rightarrow$ `Square` $\rightarrow$ `Variable Pulse`.
+  * **Dedicated Pulse Width (PWM):** Variable pulse width ranging from `5%` to `95%`.
+  * **Coarse Pitch Tuning:** Stepped pitch adjustment across $\pm24$ semitones ($\pm2$ octaves).
+  * **Fine Detune:** Micro-tuning across $\pm50$ cents for lush beating pads and thick leads.
+  * **Level Slider:** Independent level attenuation (`0.0` to `1.0`).
+
+### ⚡ Oscillator Interaction Matrix (Sync & Cross-Modulation)
+* **Anti-Aliased Hard Sync (`SYNC`):** Tactile push-button with active LED. When engaged, DCO 1 phase wraps trigger fractional sub-sample resets of DCO 2, smoothed via PolyBLEP correction.
+* **Cross-Modulation (`X-MOD`):** Variable modulation depth (`0%` to `100%`) with selectable routing:
+  * **`FM` (Frequency Modulation):** Audio-rate frequency modulation of DCO 2 by DCO 1 for metallic bells, FM basses, and aggressive timbres.
+  * **`RING` (Ring Modulation):** Four-quadrant analog multiplier ($DCO 1 \times DCO 2$) blended seamlessly into DCO 2 for bell-like chimes and robotic sci-fi clangors.
+
+### 🔉 Multi-Mode Sub-Oscillator & Noise Generator
+* **Sub-Oscillator (`SUB`):** True PolyBLEP anti-aliased square wave locked to DCO 1.
+  * **Sub Octave Switch:** Toggle instantly between **`-1 Octave`** for classic low-end reinforcement and **`-2 Octaves`** for earth-shaking sub-bass.
+  * Dedicated level control.
+* **White Noise Generator (`NOISE`):** 32-bit lock-free pseudo-random LCG noise source for vintage snare snaps, breathy flutes, and rushing sweeps.
 
 ### 🎛️ Filters & Envelopes
-* **High-Pass Filter (HPF):** 1-pole high-pass stage to clean up low-end rumble.
-* **24dB/Octave Resonant Low-Pass Filter (VCF):** 4-pole cascaded OTA filter model with analog saturation and self-oscillation capabilities.
-* **Dual Analog-Curved ADSR Envelopes:** Independent exponential envelopes for the Filter (with bipolar envelope modulation amount) and VCA amplifier stage.
+* **1-Pole High-Pass Filter (HPF):** Sweepable from 10 Hz to 1000 Hz to carve away muddy low-end build-up.
+* **24dB/Octave Resonant Low-Pass Filter (VCF):** 2x oversampled 4-pole cascaded OTA filter model with rational saturation and self-oscillation capabilities.
+* **Dual Exponential ADSR Envelopes:** True $T_{60}$ exponential envelopes for the Filter (with bipolar modulation amount) and Amplifier stage with instantaneous click-free voice voice retriggering.
 
-### 🔄 Voice Variation Matrix (OB-Xf / Mono/Poly Style)
-* **Discrete Voice Controls:** 6 dedicated knobs for voices 1 through 6.
-* **Panning Mode:** Set individual stereo pan positions for each voice to create ultra-wide stereo pads.
-* **Tuning Mode:** Dial in vintage analog component drift and micro-pitch offsets ($\pm50$ cents per voice).
-* **Voice Cycling Mode (`CYCLE`):** When engaged, incoming notes cycle sequentially through voices 1 $\rightarrow$ 6, rotating timbres and stereo positions on every single note.
-* **Real-time Voice Status LEDs:** Hardware-style status lights show active voices as they trigger.
+### 🔄 Voice Variation Matrix (OB-X / Mono/Poly Style)
+* **Discrete Voice Controls:** 6 dedicated hardware knobs for voices 1 through 6.
+* **Panning Mode:** Set individual stereo pan locations for each voice to paint expansive, cinematic stereo fields.
+* **Tuning Mode:** Introduce vintage component drift and micro-pitch offsets ($\pm50$ cents per voice) for organic analog instability.
+* **Voice Cycling Mode (`CYCLE`):** When active, incoming notes rotate sequentially through voices $1 \rightarrow 2 \rightarrow 3 \rightarrow 4 \rightarrow 5 \rightarrow 6$, cycling different panning, tuning, and timbral variations on every keystroke.
+* **Real-time Voice Status LEDs:** Hardware-style indicator lights monitor voice triggering and allocation in real time.
 
-### 🎚️ Modulation Section (3 LFOs)
-* **LFO 1 (Master):** 6 waveforms (Sine, Triangle, Saw Up, Saw Down, Square, S&H) hard-routed to Filter Cutoff and Oscillator Pitch.
-* **LFO 2 & LFO 3 (Assignable Mod Matrix):** Selectable Sine, Triangle, or Sample & Hold waveforms with independent speed, depth, and a **22-destination target router** (modulate Cutoff, Resonance, HPF, Attack, Decay, Sustain, Release, Morph, PWM, Pitch, Detune, Sub, Noise, or Volume).
+### 🎚️ Modulation Section (3 LFOs & 25 Mod Targets)
+* **LFO 1 (Master Performance LFO):** 6 selectable waveforms (*Sine, Triangle, Saw Up, Saw Down, Square, S&H*) hardwired to Filter Cutoff and Oscillator Pitch.
+* **LFO 2 & LFO 3 (Assignable Mod Matrix):** Independent speed, shape (*Sine, Triangle, S&H*), and depth routing to **25 distinct destinations**:
+  * *LPF Cutoff, LPF Resonance, HPF Cutoff, Filter Env Mod*
+  * *Filter Attack, Filter Decay, Filter Sustain, Filter Release*
+  * *Amp Attack, Amp Decay, Amp Sustain, Amp Release*
+  * *DCO 1 Morph, DCO 1 PWM, DCO 1 Fold*
+  * *DCO 2 Morph, DCO 2 PWM, DCO 2 Semi, DCO 2 Detune*
+  * *X-Mod Amount, Sub Level, Noise Level, Glide Time, Master Volume*
 
-### 🎛️ Master FX Rack (Tab 2)
-* **Stereo Chorus:** Classic BBD chorus unit with Off, Mode I, Mode II, and fast vibrato Mode I+II.
-* **Tempo-Synced Ping-Pong Delay:** Musical beat divisions (`1/32` to `1/1`, dotted and triplets, plus Free ms mode), feedback, high-frequency damping, and stereo ping-pong bounce.
-* **Lush Algorithmic Reverb:** Room size, high-frequency damping, and wet/dry mix.
+### 🎛️ Master FX Suite (Tab 2)
+* **Stereo Chorus:** Classic analog-modeled BBD chorus unit (*Off, Chorus I, Chorus II, and rich Chorus I+II*).
+* **Tempo-Synced Ping-Pong Delay:** 16 musical sync timings (`1/32` up to `1/1`, including triplets and dotted notes) plus Free ms mode, damping, feedback, and ping-pong stereo bouncing.
+* **Algorithmic Reverb:** Room size, high-frequency damping, and mix for lush ambient spaces.
 
 ### 🎹 Performance, Sequencer & Arpeggiator
-* **64-Step Sequencer (4 Pages × 16 Steps):** Step-record notes directly from the keyboard, enter rests, set custom sequence lengths, and navigate through 4 pages of 16 steps.
-* **1-Finger Chord Mode:** Instant chord generation across 9 chord types (*Major, Minor, Maj7, Min7, Dom7, Sus4, Diminished, Octave, 5th/Power*).
-* **Multi-Mode Arpeggiator:** *Up, Down, Up/Down, Random,* and *As-Played* modes synced to tempo. **Works simultaneously with Chord Mode** to arpeggiate complex chords from a single key.
-* **Host DAW Sync:** Automatically synchronizes sequencer playback and delay timings to your DAW's transport and BPM.
-* **Integrated Button Keybed:** Two-octave push-button keyboard with glowing note indicators, octave transposition switches (`OCT -` / `OCT +`), and QWERTY musical typing.
+* **64-Step Sequencer (4 Pages × 16 Steps):** Step-record notes directly from the keyboard, enter rests, set custom sequence lengths, and navigate across 4 pages of 16 steps.
+* **1-Finger Chord Mode:** Instant chord voicing across 9 chord types (*Major, Minor, Maj7, Min7, Dom7, Sus4, Diminished, Octave, Power 5th*).
+* **Multi-Mode Arpeggiator:** *Up, Down, Up/Down, Random,* and *As-Played* modes synced to host tempo. **Works simultaneously with Chord Mode** to arpeggiate complex chords from a single held key.
+* **Host DAW Sync:** Synchronizes sequencer clock and delay divisions seamlessly with your DAW's transport and BPM.
+* **Integrated Button Keybed:** Two-octave tactile push-button keyboard with glowing LED indicators, octave transpose (`OCT -` / `OCT +`), and QWERTY musical typing with pointer focus lock.
 
-### 🎨 Retro UI & Visual Themes
-* **Brushed Silver Chassis:** Vintage metal styling with custom turned-aluminum knobs and tactile beveled push-buttons.
-* **Four 14-Segment Digital LED Displays:** Authentic red glowing digital screens for Arp, Chord, Steps, and Page indicators.
-* **7-Color LED Theme Engine:** Switch all LEDs and digital screens between **Vintage Red**, **Neon Cyan**, **Acid Green**, **Amber Gold**, **Solar Yellow**, **Ultraviolet**, and **Ghost White**.
-* **High-Performance 60 FPS Render Engine:** Fully hardware-cached vector rendering for fluid, lag-free UI interaction and window dragging.
+### 🎨 Visual Themes & Hardware Customization
+* **4 Distinct Chassis Themes:**
+  * **Classic Silver:** Turned-aluminum faceplate with brushed metal textures.
+  * **Midnight Blue:** Deep navy chassis with vintage blue-grey accents.
+  * **Vintage Wood:** Warm walnut wooden end-cheeks and bronze paneling.
+  * **Stealth Dark:** Matte-black stealth chassis with a top accent line that dynamically matches your chosen LED color palette.
+* **7-Color Dynamic LED Theme Engine:** Switch all 14-segment digital displays, voice lights, button indicators, and keyboard LEDs between:
+  * **Vintage Red**, **Neon Cyan**, **Acid Green**, **Amber Gold**, **Solar Yellow**, **Ultraviolet**, and **Ghost White**.
+* **Theme Decoupling:** Chassis themes and LED palettes are preserved independently across preset and patch loading.
 
 ### 💾 Preset & Patch Management
-* **Built-in Factory Presets:** Comes loaded with 8 classic factory sounds (*Init Poly, Juno Warm Pad, Poly Drift Keys, Supersaw Hoover, Acid 106 Lead, 80s Arp Dream, MonoPoly Drift, Space Pluck*).
-* **Save, Load & Share:** Patches are stored as portable `.s106` XML files in your Documents folder, capturing both synth parameters and custom 64-step sequencer patterns.
+* **Factory Preset Bank:** Includes classic factory presets (*Init Poly, Juno Warm Pad, Poly Drift Keys, Supersaw Hoover, Acid 106 Lead, 80s Arp Dream, MonoPoly 6-Voice Drift, Space Pluck*).
+* **Portable Patch Format:** Store and share custom `.s106` XML patches containing both sound engine parameters and custom 64-step sequencer patterns.
 
 ---
-🤖 AI Development Disclosure
+
+## 🤖 AI Development Disclosure
 
 In the spirit of open-source transparency:
 While the overall concept, feature architecture, musical requirements, user interface design, testing, and creative vision were conceived and directed by Fadedlimes, the underlying C++ DSP code and JUCE framework implementation were developed in collaboration with conversational AI assistance.
+
+---
 
 ## 📦 Installation & Formats
 
 Download the latest pre-compiled binaries from the **[Releases](../../releases)** tab.
 
-| Platform | Formats | Installation Location |
+| Platform | Formats | Default Installation Directory |
 | :--- | :--- | :--- |
 | **Linux (x86_64)** | VST3, Standalone | `~/.vst3/` |
 | **macOS (Universal - Apple Silicon & Intel)** | VST3, AU (Component), Standalone | `/Library/Audio/Plug-Ins/VST3/`<br>`/Library/Audio/Plug-Ins/Components/` |
@@ -97,10 +129,61 @@ Download the latest pre-compiled binaries from the **[Releases](../../releases)*
 
 ### Prerequisites
 * **CMake** 3.20 or newer
-* **C++17** compliant compiler (GCC 9+, Clang 10+, or MSVC 2019+)
+* **C++17** compliant compiler (GCC 11+, Clang 12+, or MSVC 2019+)
 * **Git**
 
-#### Linux Build Dependencies (Ubuntu/Debian/Pop!_OS):
+### 🐧 Linux Build Instructions
+
+#### Fedora / RHEL:
 ```bash
+# Install development dependencies
+sudo dnf install -y gcc-c++ cmake alsa-lib-devel libX11-devel libXrandr-devel libXinerama-devel libXcursor-devel freetype-devel
+
+# Clone and build
+git clone https://github.com/Fadedlimes/Simple106.git
+cd Simple106
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release -j$(nproc)
+
+# Run Standalone
+./build/Simple106_artefacts/Release/Standalone/Simple106
+```
+
+#### Ubuntu / Debian / Pop!_OS:
+```bash
+# Install development dependencies
 sudo apt update
 sudo apt install -y build-essential cmake libasound2-dev libjack-jackd2-dev libgl1-mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libfreetype6-dev
+
+# Clone and build
+git clone https://github.com/Fadedlimes/Simple106.git
+cd Simple106
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release -j$(nproc)
+
+# Run Standalone
+./build/Simple106_artefacts/Release/Standalone/Simple106
+```
+
+### 🍎 macOS Build Instructions
+```bash
+git clone https://github.com/Fadedlimes/Simple106.git
+cd Simple106
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release -j$(sysctl -n hw.ncpu)
+```
+
+### 🪟 Windows Build Instructions (Visual Studio Developer Command Prompt)
+```cmd
+git clone https://github.com/Fadedlimes/Simple106.git
+cd Simple106
+cmake -B build -G "Visual Studio 17 2022" -A x64
+cmake --build build --config Release --parallel
+```
+
+---
+
+## 📄 License
+
+This project is licensed under the **GNU General Public License v3.0 (GPLv3)**. See the [LICENSE](LICENSE) file for full details.
+```
