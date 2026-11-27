@@ -88,12 +88,29 @@ static void applyLegibleLabel (juce::Label& l, float size, bool onDark = false)
     if (onDark) p.set ("s116OnDark", true);
 }
 
+static int glyphBoxHeightFor (const juce::Font& font, const juce::String& sample)
+{
+    juce::GlyphArrangement ga;
+    ga.addLineOfText (font, sample, 0.0f, 0.0f);
+    return (int) std::ceil (ga.getBoundingBox (0, ga.getNumGlyphs(), true).getHeight());
+}
+
+static int captionBoxHeight()
+{
+    return glyphBoxHeightFor (S116::skin().ui (S106Type::kCaption, 0.0f), "ENV MOD Ag") + 3;
+}
+
+static int fieldBoxHeight()
+{
+    return glyphBoxHeightFor (S116::skin().ui (S106Type::kField, 0.0f), "DELAY TIME / SYNC Ag") + 3;
+}
+
 static void placeLegibleField (juce::ComboBox& box, juce::Label& label,
                                int x, int y, int w)
 {
     S116::layout::placeField (box, label, x, y, w);
-    // 14 px needs a 16 px label box; the combo stays at y + 20.
-    label.setBounds (x, y - 2, w, 16);
+    // Raise the label box to the measured glyph height; the combo stays at y + 20.
+    label.setBounds (x, y - 2, w, fieldBoxHeight());
 }
 
 // ==============================================================================
@@ -203,6 +220,46 @@ void SegmentReadout::drawChar(juce::Graphics& g, float x, float y, float w, floa
 }
 
 // ==============================================================================
+// Voice readout: dark LCD plate, LED readout ink, widest-string size.
+// ==============================================================================
+VoiceReadout::VoiceReadout()
+{
+    setWantsKeyboardFocus(false);
+    setMouseClickGrabsKeyboardFocus(false);
+    setInterceptsMouseClicks(false, false);
+}
+
+void VoiceReadout::setText(const juce::String& newText)
+{
+    if (text == newText) return;
+    text = newText;
+    repaint();
+}
+
+juce::Point<int> VoiceReadout::requiredSize()
+{
+    const auto font = S116::skin().mono (S106Type::kReadout);
+    const char* samples[] = { "-100 ct", "L100", "R100", "MID" };
+    float w = 0.0f, h = 0.0f;
+    for (const auto* s : samples)
+    {
+        juce::GlyphArrangement ga;
+        ga.addLineOfText (font, s, 0.0f, 0.0f);
+        const auto b = ga.getBoundingBox (0, ga.getNumGlyphs(), true);
+        w = juce::jmax (w, b.getWidth());
+        h = juce::jmax (h, b.getHeight());
+    }
+    return { (int) std::ceil (w) + 8, (int) std::ceil (h) + 8 };
+}
+
+void VoiceReadout::paintDynamic(juce::Graphics& g)
+{
+    g.setFont (S116::skin().mono (S106Type::kReadout));
+    g.setColour (S116::skin().theme().ledReadout);
+    g.drawText (text, getLocalBounds().reduced (4), juce::Justification::centred, false);
+}
+
+// ==============================================================================
 // Voice panel with live LEDs
 // ==============================================================================
 void VoicePanel::paintDynamic(juce::Graphics& g)
@@ -278,7 +335,7 @@ SavePatchDialog::SavePatchDialog(std::function<void(const juce::String&)> onSave
 void SavePatchDialog::refreshTheme()
 {
     const auto& t = S116::skin().theme();
-    patchNameEditor.setFont(S116::skin().mono(13.0f));
+    patchNameEditor.setFont(S116::skin().mono(S106Type::kReadout));
     patchNameEditor.setColour(juce::TextEditor::backgroundColourId, t.lcdTop);
     patchNameEditor.setColour(juce::TextEditor::textColourId, t.ledText);
     patchNameEditor.setColour(juce::TextEditor::highlightColourId, t.ledOn);
@@ -340,18 +397,18 @@ void SavePatchDialog::paint(juce::Graphics& g) {
                juce::Justification::centredLeft, false);
 
     g.setColour(t.heading);
-    g.setFont(S116::skin().ui(12.0f, 0.10f));
+    g.setFont(S116::skin().ui(S106Type::kField, 0.10f));
     g.drawText("PATCH NAME",
                juce::Rectangle<int>(box.getX() + 24, box.getY() + 48,
-                                    box.getWidth() - 48, 16),
+                                    box.getWidth() - 48, fieldBoxHeight()),
                juce::Justification::centredLeft, false);
 }
 
 void SavePatchDialog::resized() {
     const auto box = getDialogBounds();
-    patchNameEditor.setBounds(box.getX() + 24, box.getY() + 66, box.getWidth() - 48, 32);
-    confirmSaveBtn.setBounds(box.getX() + 80, box.getY() + 118, 95, 34);
-    cancelSaveBtn.setBounds(box.getX() + 205, box.getY() + 118, 95, 34);
+    patchNameEditor.setBounds(box.getX() + 24, box.getY() + 70, box.getWidth() - 48, 32);
+    confirmSaveBtn.setBounds(box.getX() + 80, box.getY() + 122, 95, 34);
+    cancelSaveBtn.setBounds(box.getX() + 205, box.getY() + 122, 95, 34);
 }
 
 // ==============================================================================
@@ -406,7 +463,7 @@ Simple106AudioProcessorEditor::Simple106AudioProcessorEditor(Simple106AudioProce
         l.setName(text);
         if (field) S116::layout::styleField(l);
         else       S116::layout::styleCaption(l);
-        applyLegibleLabel(l, 14.0f, onDark);
+        applyLegibleLabel(l, S106Type::kField, onDark);
         l.setWantsKeyboardFocus(false);
         l.setMouseClickGrabsKeyboardFocus(false);
     };
@@ -684,17 +741,19 @@ Simple106AudioProcessorEditor::Simple106AudioProcessorEditor(Simple106AudioProce
     {
         auto& vk = voiceKnobs[i];
         S116::layout::styleCaption(vk.label);
-        applyLegibleLabel(vk.label, 14.0f);
+        applyLegibleLabel(vk.label, S106Type::kCaption);
         vk.label.setWantsKeyboardFocus(false);
         vk.label.setMouseClickGrabsKeyboardFocus(false);
         vk.label.setInterceptsMouseClicks(false, false);
         voicePanel.addAndMakeVisible(vk.label);
 
         vk.slider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-        vk.slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 54, 20);
+        vk.slider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
         vk.slider.setWantsKeyboardFocus(false);
         vk.slider.setMouseClickGrabsKeyboardFocus(false);
+        vk.slider.addListener(this);
         voicePanel.addAndMakeVisible(vk.slider);
+        voicePanel.addAndMakeVisible(voiceReadouts[(size_t) i]);
     }
 
     setupBox(voiceVarModeBox, voiceVarLabel, "voiceVarMode", "VOICE VAR", { "PANNING", "TUNING" }, voicePanel);
@@ -919,6 +978,8 @@ Simple106AudioProcessorEditor::Simple106AudioProcessorEditor(Simple106AudioProce
 
 Simple106AudioProcessorEditor::~Simple106AudioProcessorEditor() {
     stopTimer();
+    for (auto& vk : voiceKnobs)
+        vk.slider.removeListener(this);
     S116::skin().removeChangeListener(this);
     removeMouseListener(this);
     removeKeyListener(this);
@@ -1090,7 +1151,7 @@ void Simple106AudioProcessorEditor::updateSegmentDisplays()
 
 void Simple106AudioProcessorEditor::setIdleHeaderLcd()
 {
-    headerLcd.setLines({ "S-106", "READY" });
+    headerLcd.setLines({ "S-106", "READY" }, S106Type::kHeaderLcd);
 }
 
 void Simple106AudioProcessorEditor::showSliderValue(juce::Slider* slider)
@@ -1100,7 +1161,8 @@ void Simple106AudioProcessorEditor::showSliderValue(juce::Slider* slider)
     if (it == sliderNames.end()) return;
 
     headerLcd.setLines({ it->second.toUpperCase(),
-                         slider->getTextFromValue(slider->getValue()) });
+                         slider->getTextFromValue(slider->getValue()) },
+                       S106Type::kHeaderLcd);
     headerLcdHoldTicks = 90;
 }
 
@@ -1217,6 +1279,26 @@ void Simple106AudioProcessorEditor::updateVoiceKnobAttachments() {
             "VOICE " + juce::String(i + 1) + (isTune ? " TUNE" : " PAN");
         voiceKnobs[i].slider.updateText();
     }
+
+    refreshVoiceReadouts();
+}
+
+void Simple106AudioProcessorEditor::refreshVoiceReadouts()
+{
+    for (int i = 0; i < 6; ++i)
+        voiceReadouts[(size_t) i].setText (
+            voiceKnobs[i].slider.getTextFromValue (voiceKnobs[i].slider.getValue()));
+}
+
+void Simple106AudioProcessorEditor::sliderValueChanged(juce::Slider* slider)
+{
+    for (int i = 0; i < 6; ++i)
+        if (slider == &voiceKnobs[i].slider)
+        {
+            voiceReadouts[(size_t) i].setText (
+                slider->getTextFromValue (slider->getValue()));
+            return;
+        }
 }
 
 void Simple106AudioProcessorEditor::setupControl(LabeledSlider& ctrl, const juce::String& paramId,
@@ -1224,7 +1306,7 @@ void Simple106AudioProcessorEditor::setupControl(LabeledSlider& ctrl, const juce
 {
     ctrl.label.setText(labelText, juce::dontSendNotification);
     S116::layout::styleCaption(ctrl.label);
-    applyLegibleLabel(ctrl.label, 14.0f);
+    applyLegibleLabel(ctrl.label, S106Type::kCaption);
     ctrl.label.setName(labelText);
     ctrl.label.setWantsKeyboardFocus(false);
     ctrl.label.setMouseClickGrabsKeyboardFocus(false);
@@ -1255,7 +1337,7 @@ void Simple106AudioProcessorEditor::setupBox(juce::ComboBox& box, juce::Label& l
 {
     S116::layout::styleField(label);
     label.setText(text, juce::dontSendNotification);
-    applyLegibleLabel(label, 14.0f);
+    applyLegibleLabel(label, S106Type::kField);
     label.setName(text);
     label.setWantsKeyboardFocus(false);
     label.setMouseClickGrabsKeyboardFocus(false);
@@ -1279,17 +1361,26 @@ void Simple106AudioProcessorEditor::placeBare(juce::Slider& slider, juce::Label&
 {
     const int square = S116::layout::placeBareKnob(slider, cell.getX(), cell.getY(),
                                                    cell.getWidth(), kSmallBody);
-    caption.setBounds(cell.getX(), cell.getY() + square, cell.getWidth(), 16);
+    caption.setBounds(cell.getX(), cell.getY() + square, cell.getWidth(), captionBoxHeight());
 #if S106_DEBUG_AUDIT
     knobCells.push_back({ &slider, &caption, cell, name });
 #endif
 }
 
 void Simple106AudioProcessorEditor::placeVoice(juce::Slider& slider, juce::Label& caption,
-                                               juce::Rectangle<int> cell, const juce::String& name)
+                                               VoiceReadout& readout, juce::Rectangle<int> cell,
+                                               const juce::String& name)
 {
-    S116::layout::placeKnob(slider, caption, cell.getX(), cell.getY(),
-                            cell.getWidth(), kSmallBody, false);
+    S116::layout::placeBareKnob (slider, cell.getX(), cell.getY(), cell.getWidth(), kSmallBody);
+
+    const auto readoutSize = VoiceReadout::requiredSize();
+    const int readoutX = cell.getX() + (cell.getWidth() - readoutSize.x) / 2;
+    const int readoutY = cell.getY() + 64 + 2;
+    readout.setBounds (readoutX, readoutY, readoutSize.x, readoutSize.y);
+
+    caption.setBounds (cell.getX(), readoutY + readoutSize.y + 2,
+                       cell.getWidth(), captionBoxHeight());
+
 #if S106_DEBUG_AUDIT
     knobCells.push_back({ &slider, &caption, cell, name });
 #endif
@@ -1302,7 +1393,7 @@ void Simple106AudioProcessorEditor::layoutHeader()
     const int logoRight = (int) std::ceil(headerBar.getLogoRight());
     const int startX = logoRight + 14;
 
-    const int presetW = 180 + extra * 25 / 100;
+    const int presetW = 214 + extra * 25 / 100;
     const int saveW = 48, initW = 48;
     const int presetX = startX;
     const int saveX = presetX + presetW + 6;
@@ -1316,14 +1407,14 @@ void Simple106AudioProcessorEditor::layoutHeader()
     const int ledX = lcdX - 12 - ledW;
     const int chassisX = ledX - 6 - chassisW;
 
-    presetLabel.setBounds(presetX, 8, presetW, 16);
+    presetLabel.setBounds(presetX, 8, presetW, fieldBoxHeight());
     presetBox.setBounds(presetX, 30, presetW, 32);
     savePresetBtn.setBounds(saveX, 19, saveW, 34);
     initPresetBtn.setBounds(initX, 19, initW, 34);
 
-    chassisThemeLabel.setBounds(chassisX, 8, chassisW, 16);
+    chassisThemeLabel.setBounds(chassisX, 8, chassisW, fieldBoxHeight());
     chassisThemeBox.setBounds(chassisX, 30, chassisW, 32);
-    ledThemeLabel.setBounds(ledX, 8, ledW, 16);
+    ledThemeLabel.setBounds(ledX, 8, ledW, fieldBoxHeight());
     themeBox.setBounds(ledX, 30, ledW, 32);
 
     headerLcd.setBounds(lcdX, 13, lcdW, 46);
@@ -1334,6 +1425,7 @@ void Simple106AudioProcessorEditor::layoutSynthPage()
 {
     const int bodyW = bodyRect.getWidth();
     const int bodyH = bodyRect.getHeight();
+    const int bareCellH = 64 + captionBoxHeight();
     const int extra = juce::jmax(0, bodyH - (kTopRowMin + kRowGap + kBottomRowMin));
     const int topH = kTopRowMin + extra * kTopRowMin / (kTopRowMin + kBottomRowMin);
     const int bottomH = bodyH - kRowGap - topH;
@@ -1344,12 +1436,14 @@ void Simple106AudioProcessorEditor::layoutSynthPage()
     const int wFil = topAvail * 288 / topWeights;
     const int wEnv = topAvail - wDco - wFil;
 
-    const int bottomAvail = bodyW - 40;
-    const int bottomWeights = 196 + 216 + 144 + 144 + 240;
-    const int wSub = bottomAvail * 196 / bottomWeights;
-    const int wL1 = bottomAvail * 216 / bottomWeights;
-    const int wL2 = bottomAvail * 144 / bottomWeights;
-    const int wL3 = bottomAvail * 144 / bottomWeights;
+    constexpr int bottomMinSum = 196 + 216 + 164 + 164 + 240;
+    const int bottomGap = juce::jlimit (4, 12, (bodyW - bottomMinSum) / 4);
+    const int bottomAvail = bodyW - bottomGap * 4;
+    const int bottomExtra = bottomAvail - bottomMinSum;
+    const int wSub = 196 + bottomExtra * 196 / bottomMinSum;
+    const int wL1 = 216 + bottomExtra * 216 / bottomMinSum;
+    const int wL2 = 164 + bottomExtra * 164 / bottomMinSum;
+    const int wL3 = 164 + bottomExtra * 164 / bottomMinSum;
     const int wVoice = bottomAvail - wSub - wL1 - wL2 - wL3;
 
     const int topY = 0;
@@ -1367,20 +1461,20 @@ void Simple106AudioProcessorEditor::layoutSynthPage()
     setPanel(envPanel,   { bodyRect.getX() + wDco + 10 + wFil + 10, bodyRect.getY() + topY, wEnv, topH }, 2);
 
     int bx = bodyRect.getX();
-    setPanel(subPanel,   { bx, bodyRect.getY() + bottomY, wSub, bottomH }, 3); bx += wSub + 10;
-    setPanel(lfo1Panel,  { bx, bodyRect.getY() + bottomY, wL1, bottomH }, 4); bx += wL1 + 10;
-    setPanel(lfo2Panel,  { bx, bodyRect.getY() + bottomY, wL2, bottomH }, 5); bx += wL2 + 10;
-    setPanel(lfo3Panel,  { bx, bodyRect.getY() + bottomY, wL3, bottomH }, 6); bx += wL3 + 10;
+    setPanel(subPanel,   { bx, bodyRect.getY() + bottomY, wSub, bottomH }, 3); bx += wSub + bottomGap;
+    setPanel(lfo1Panel,  { bx, bodyRect.getY() + bottomY, wL1, bottomH }, 4); bx += wL1 + bottomGap;
+    setPanel(lfo2Panel,  { bx, bodyRect.getY() + bottomY, wL2, bottomH }, 5); bx += wL2 + bottomGap;
+    setPanel(lfo3Panel,  { bx, bodyRect.getY() + bottomY, wL3, bottomH }, 6); bx += wL3 + bottomGap;
     setPanel(voicePanel, { bx, bodyRect.getY() + bottomY, wVoice, bottomH }, 7);
 
     // DCO 1 & 2
     {
         const auto C = synthPanelContent[0];
-        auto ys = S116::layout::distribute(C.getHeight(), { 80, 80 }, 4);
+        auto ys = S116::layout::distribute(C.getHeight(), { bareCellH, bareCellH }, 4);
         const int cw = C.getWidth() / 5;
         auto cell = [&](int row, int col) {
             const int w = (col == 4) ? C.getWidth() - 4 * cw : cw;
-            return juce::Rectangle<int>(C.getX() + col * cw, C.getY() + ys[(size_t) row], w, 80);
+            return juce::Rectangle<int>(C.getX() + col * cw, C.getY() + ys[(size_t) row], w, bareCellH);
         };
         placeBare(dco1Morph.slider,  dco1Morph.label,  cell(0, 0), "DCO1 MORPH");
         placeBare(dco1PWM.slider,    dco1PWM.label,    cell(0, 1), "DCO1 PWM");
@@ -1397,10 +1491,10 @@ void Simple106AudioProcessorEditor::layoutSynthPage()
     // Filter (HPF/VCF + filter envelope)
     {
         const auto C = synthPanelContent[1];
-        auto ys = S116::layout::distribute(C.getHeight(), { 80, 80 }, 4);
+        auto ys = S116::layout::distribute(C.getHeight(), { bareCellH, bareCellH }, 4);
         const int cw = C.getWidth() / 4;
         auto cell = [&](int row, int col) {
-            return juce::Rectangle<int>(C.getX() + col * cw, C.getY() + ys[(size_t) row], cw, 80);
+            return juce::Rectangle<int>(C.getX() + col * cw, C.getY() + ys[(size_t) row], cw, bareCellH);
         };
         placeBare(hpfCutoff.slider, hpfCutoff.label, cell(0, 0), "HPF");
         placeBare(lpfCutoff.slider, lpfCutoff.label, cell(0, 1), "CUTOFF");
@@ -1415,10 +1509,10 @@ void Simple106AudioProcessorEditor::layoutSynthPage()
     // Envelopes + master
     {
         const auto C = synthPanelContent[2];
-        auto ys = S116::layout::distribute(C.getHeight(), { 80, 80 }, 4);
+        auto ys = S116::layout::distribute(C.getHeight(), { bareCellH, bareCellH }, 4);
         const int cw = C.getWidth() / 4;
         auto cell = [&](int col) {
-            return juce::Rectangle<int>(C.getX() + col * cw, C.getY() + ys[0], cw, 80);
+            return juce::Rectangle<int>(C.getX() + col * cw, C.getY() + ys[0], cw, bareCellH);
         };
         placeBare(ampA.slider, ampA.label, cell(0), "AMP ATTACK");
         placeBare(ampD.slider, ampD.label, cell(1), "AMP DECAY");
@@ -1429,18 +1523,18 @@ void Simple106AudioProcessorEditor::layoutSynthPage()
         placeLegibleField(playModeBox, playModeLabel, C.getX(), row2 + 14, 120);
         const int masterW = C.getWidth() - 3 * cw;
         placeBare(masterVol.slider, masterVol.label,
-                  { C.getX() + 3 * cw, row2, masterW, 80 }, "MASTER VOLUME");
+                  { C.getX() + 3 * cw, row2, masterW, bareCellH }, "MASTER VOLUME");
     }
 
     // Sub / Noise / Glide / X-Mod
     {
         const auto C = synthPanelContent[3];
-        auto ys = S116::layout::distribute(C.getHeight(), { 168, 52, 34 }, 4);
+        auto ys = S116::layout::distribute(C.getHeight(), { 2 * bareCellH + 8, 52, 34 }, 4);
         const int cw = C.getWidth() / 2;
-        placeBare(subLevel.slider,   subLevel.label,   { C.getX(),          C.getY() + ys[0], cw, 80 }, "SUB OSC");
-        placeBare(noiseLevel.slider, noiseLevel.label, { C.getX() + cw,     C.getY() + ys[0], cw, 80 }, "NOISE");
-        placeBare(glideTime.slider,  glideTime.label,  { C.getX(),          C.getY() + ys[0] + 88, cw, 80 }, "GLIDE");
-        placeBare(xmodAmount.slider, xmodAmount.label, { C.getX() + cw,     C.getY() + ys[0] + 88, cw, 80 }, "X-MOD");
+        placeBare(subLevel.slider,   subLevel.label,   { C.getX(),          C.getY() + ys[0], cw, bareCellH }, "SUB OSC");
+        placeBare(noiseLevel.slider, noiseLevel.label, { C.getX() + cw,     C.getY() + ys[0], cw, bareCellH }, "NOISE");
+        placeBare(glideTime.slider,  glideTime.label,  { C.getX(),          C.getY() + ys[0] + bareCellH + 8, cw, bareCellH }, "GLIDE");
+        placeBare(xmodAmount.slider, xmodAmount.label, { C.getX() + cw,     C.getY() + ys[0] + bareCellH + 8, cw, bareCellH }, "X-MOD");
 
         const int fieldW = (C.getWidth() - 8) / 2;
         placeLegibleField(subOctBox, subOctLabel, C.getX(), C.getY() + ys[1], fieldW);
@@ -1455,12 +1549,12 @@ void Simple106AudioProcessorEditor::layoutSynthPage()
         const auto C = synthPanelContent[4];
         // Keep the SHAPE row and knob row on the same baselines as LFO 2/3;
         // LFO 1 has no TARGET combo, so that row is intentionally empty.
-        auto ys = S116::layout::distribute(C.getHeight(), { 52, 52, 80 }, 4);
+        auto ys = S116::layout::distribute(C.getHeight(), { 52, 52, bareCellH }, 4);
         placeLegibleField(lfo1ShapeBox, lfo1ShapeLabel, C.getX(),
                                  C.getY() + ys[0], juce::jmin(C.getWidth(), 110));
         const int cw = C.getWidth() / 3;
         auto cell = [&](int col) {
-            return juce::Rectangle<int>(C.getX() + col * cw, C.getY() + ys[2], cw, 80);
+            return juce::Rectangle<int>(C.getX() + col * cw, C.getY() + ys[2], cw, bareCellH);
         };
         placeBare(lfo1Rate.slider,    lfo1Rate.label,    cell(0), "LFO1 RATE");
         placeBare(lfo1ToFilt.slider,  lfo1ToFilt.label,  cell(1), "LFO1 VCF MOD");
@@ -1470,57 +1564,61 @@ void Simple106AudioProcessorEditor::layoutSynthPage()
     // LFO 2
     {
         const auto C = synthPanelContent[5];
-        auto ys = S116::layout::distribute(C.getHeight(), { 52, 52, 80 }, 4);
+        auto ys = S116::layout::distribute(C.getHeight(), { 52, 52, bareCellH }, 4);
         placeLegibleField(lfo2ShapeBox, lfo2ShapeLabel, C.getX(),
                                  C.getY() + ys[0], C.getWidth());
         placeLegibleField(lfo2TargetBox, lfo2TargetLabel, C.getX(),
                                  C.getY() + ys[1], C.getWidth());
         const int cw = C.getWidth() / 2;
         placeBare(lfo2Rate.slider,   lfo2Rate.label,
-                  { C.getX(), C.getY() + ys[2], cw, 80 }, "LFO2 RATE");
+                  { C.getX(), C.getY() + ys[2], cw, bareCellH }, "LFO2 RATE");
         placeBare(lfo2Amount.slider, lfo2Amount.label,
-                  { C.getX() + cw, C.getY() + ys[2], cw, 80 }, "LFO2 DEPTH");
+                  { C.getX() + cw, C.getY() + ys[2], cw, bareCellH }, "LFO2 DEPTH");
     }
 
     // LFO 3
     {
         const auto C = synthPanelContent[6];
-        auto ys = S116::layout::distribute(C.getHeight(), { 52, 52, 80 }, 4);
+        auto ys = S116::layout::distribute(C.getHeight(), { 52, 52, bareCellH }, 4);
         placeLegibleField(lfo3ShapeBox, lfo3ShapeLabel, C.getX(),
                                  C.getY() + ys[0], C.getWidth());
         placeLegibleField(lfo3TargetBox, lfo3TargetLabel, C.getX(),
                                  C.getY() + ys[1], C.getWidth());
         const int cw = C.getWidth() / 2;
         placeBare(lfo3Rate.slider,   lfo3Rate.label,
-                  { C.getX(), C.getY() + ys[2], cw, 80 }, "LFO3 RATE");
+                  { C.getX(), C.getY() + ys[2], cw, bareCellH }, "LFO3 RATE");
         placeBare(lfo3Amount.slider, lfo3Amount.label,
-                  { C.getX() + cw, C.getY() + ys[2], cw, 80 }, "LFO3 DEPTH");
+                  { C.getX() + cw, C.getY() + ys[2], cw, bareCellH }, "LFO3 DEPTH");
     }
 
     // Voice Variation Matrix
     {
         const auto C = synthPanelContent[7];
-        auto ys = S116::layout::distribute(C.getHeight(), { 52, 107, 107 }, 4);
+        const auto readoutSize = VoiceReadout::requiredSize();
+        const int voiceCellH = 64 + 2 + readoutSize.y + 2 + captionBoxHeight();
+        auto ys = S116::layout::distribute(C.getHeight(), { 52, voiceCellH, voiceCellH }, 3);
         placeLegibleField(voiceVarModeBox, voiceVarLabel, C.getX(),
-                                 C.getY() + ys[0], 120);
+                          C.getY() + ys[0], 120);
         cycleBtn.setBounds(C.getX() + 128, C.getY() + ys[0] + 9, 60, 34);
 
         const int cw = C.getWidth() / 3;
         auto cell = [&](int row, int col) {
             const int w = (col == 2) ? C.getWidth() - 2 * cw : cw;
             return juce::Rectangle<int>(C.getX() + col * cw,
-                                        C.getY() + ys[(size_t) row], w, 107);
+                                        C.getY() + ys[(size_t) row], w, voiceCellH);
         };
 
         for (int i = 0; i < 3; ++i) {
             const auto c = cell(1, i);
-            placeVoice(voiceKnobs[i].slider, voiceKnobs[i].label, c, "VOICE " + juce::String(i + 1));
+            placeVoice(voiceKnobs[i].slider, voiceKnobs[i].label,
+                       voiceReadouts[(size_t) i], c, "VOICE " + juce::String(i + 1));
             voicePanel.ledRects[(size_t) i] = { c.getRight() - 12,
                                                 voiceKnobs[i].label.getY() + 5, 6, 6 };
         }
         for (int i = 0; i < 3; ++i) {
             const auto c = cell(2, i);
-            placeVoice(voiceKnobs[3 + i].slider, voiceKnobs[3 + i].label, c,
+            placeVoice(voiceKnobs[3 + i].slider, voiceKnobs[3 + i].label,
+                       voiceReadouts[(size_t) (3 + i)], c,
                        "VOICE " + juce::String(4 + i));
             voicePanel.ledRects[(size_t) (3 + i)] = { c.getRight() - 12,
                                                       voiceKnobs[3 + i].label.getY() + 5, 6, 6 };
@@ -1532,6 +1630,7 @@ void Simple106AudioProcessorEditor::layoutFxPage()
 {
     const int bodyW = bodyRect.getWidth();
     const int bodyH = bodyRect.getHeight();
+    const int bareCellH = 64 + captionBoxHeight();
 
     const int avail = bodyW - 20;
     const int weights = 148 + 288 + 216;
@@ -1560,14 +1659,14 @@ void Simple106AudioProcessorEditor::layoutFxPage()
 
     {
         const auto C = fxPanelContent[1];
-        auto ys = S116::layout::distribute(C.getHeight(), { 52, 80, 34 }, 4);
+        auto ys = S116::layout::distribute(C.getHeight(), { 52, bareCellH, 34 }, 4);
         const int fieldW = juce::jmin(220, C.getWidth());
         placeLegibleField(delaySyncBox, delaySyncLabel,
                                  C.getX() + (C.getWidth() - fieldW) / 2,
                                  C.getY() + ys[0], fieldW);
         const int cw = C.getWidth() / 4;
         auto cell = [&](int col) {
-            return juce::Rectangle<int>(C.getX() + col * cw, C.getY() + ys[1], cw, 80);
+            return juce::Rectangle<int>(C.getX() + col * cw, C.getY() + ys[1], cw, bareCellH);
         };
         placeBare(delayTime.slider, delayTime.label, cell(0), "DELAY TIME");
         placeBare(delayFb.slider,   delayFb.label,   cell(1), "DELAY FEEDBACK");
@@ -1580,9 +1679,9 @@ void Simple106AudioProcessorEditor::layoutFxPage()
     {
         const auto C = fxPanelContent[2];
         const int cw = C.getWidth() / 3;
-        const int rowY = C.getY() + (C.getHeight() - 80) / 2;
+        const int rowY = C.getY() + (C.getHeight() - bareCellH) / 2;
         auto cell = [&](int col) {
-            return juce::Rectangle<int>(C.getX() + col * cw, rowY, cw, 80);
+            return juce::Rectangle<int>(C.getX() + col * cw, rowY, cw, bareCellH);
         };
         placeBare(reverbSize.slider, reverbSize.label, cell(0), "REVERB SIZE");
         placeBare(reverbDamp.slider, reverbDamp.label, cell(1), "REVERB DAMPING");
@@ -1637,12 +1736,12 @@ void Simple106AudioProcessorEditor::layoutFooter()
     chordDisplay.setBounds(x, y + 4, chordW, 26); x += chordW; gap(4);
     button(chordNextBtn, 32);   gap(10);
 
-    stepsLabel.setBounds(x, y + 8, 34, 16); x += 34; gap(4);
+    stepsLabel.setBounds(x, y + 8, 34, fieldBoxHeight()); x += 34; gap(4);
     button(stepsPrevBtn, 32); gap(4);
     stepsDisplay.setBounds(x, y + 4, stepsW, 26); x += stepsW; gap(4);
     button(stepsNextBtn, 32); gap(10);
 
-    pageLabel.setBounds(x, y + 8, 28, 16); x += 28; gap(4);
+    pageLabel.setBounds(x, y + 8, 28, fieldBoxHeight()); x += 28; gap(4);
     button(pagePrevBtn, 32); gap(4);
     pageDisplay.setBounds(x, y + 4, pageW, 26); x += pageW; gap(4);
     button(pageNextBtn, 32);
@@ -2245,20 +2344,7 @@ namespace {
 bool Simple106AudioProcessorEditor::auditTextLegibility (bool verbose) const
 {
     bool ok = true;
-    bool fitOk = true, contrastOk = true, variantOk = true;
-
-    const std::array<S116::ThemeId, 4> ids = {
-        S116::ThemeId::ClassicSilver, S116::ThemeId::JP8000Blue,
-        S116::ThemeId::SH101Red,      S116::ThemeId::GraphiteRed
-    };
-    const char* themeNames[] = { "CS", "JP", "SH", "G" };
-    const auto ledBase = kLedBaseColours[juce::jlimit (0, 6, currentThemeIdx)];
-
-    std::array<S116::Theme, 4> themes;
-    for (int i = 0; i < 4; ++i) {
-        themes[(size_t) i] = S116::Theme::make (ids[(size_t) i]);
-        themes[(size_t) i].applyLed (ledBase);
-    }
+    bool fitOk = true, variantOk = true;
 
     std::function<void(juce::Component&)> visit = [&](juce::Component& c) {
         if (auto* l = dynamic_cast<juce::Label*> (&c); l != nullptr && l->isVisible())
@@ -2268,14 +2354,11 @@ bool Simple106AudioProcessorEditor::auditTextLegibility (bool verbose) const
             const auto style = props.getWithDefault ("style", "").toString();
             auto* parentCombo = dynamic_cast<juce::ComboBox*> (l->getParentComponent());
             auto* parentSlider = dynamic_cast<juce::Slider*> (l->getParentComponent());
-            const bool kitReadout = (bool) props.getWithDefault ("readout", false);
-            const bool readout = kitReadout || (parentSlider != nullptr);
-            const bool comboText = (parentCombo != nullptr);
-            const bool styled = ! readout && ! comboText && style.isNotEmpty();
+            const bool styled = parentCombo == nullptr && parentSlider == nullptr && style.isNotEmpty();
 
             auto name = l->getName();
             if (name.isEmpty())
-                name = juce::String (comboText ? "combo:" : (readout ? "readout:" : "")) + text;
+                name = juce::String (parentCombo ? "combo:" : (parentSlider ? "readout:" : "")) + text;
 
             const auto font = styled ? auditFontForLabel (*l) : l->getFont();
             juce::GlyphArrangement glyphs;
@@ -2291,19 +2374,19 @@ bool Simple106AudioProcessorEditor::auditTextLegibility (bool verbose) const
                           << " " << (fits ? "PASS" : "FAIL") << std::endl;
             fitOk = fitOk && fits;
 
-            const bool autoC  = (bool) props.getWithDefault ("s116AutoContrast", false);
-            const bool onDark = (bool) props.getWithDefault ("s116OnDark", false);
-
-            bool header = false;
-            for (auto* parent = l->getParentComponent(); parent != nullptr; parent = parent->getParentComponent())
-                if (parent == &headerBar) header = true;
-
             if (styled)
             {
                 const bool noShadow = (bool) props.getWithDefault ("s116NoShadow", false);
                 const bool noKern   = (bool) props.getWithDefault ("s116NoKerning", false);
                 const bool integer  = (bool) props.getWithDefault ("s116IntegerText", false);
+                const bool autoC    = (bool) props.getWithDefault ("s116AutoContrast", false);
+                const bool onDark   = (bool) props.getWithDefault ("s116OnDark", false);
                 const double size   = (double) props.getWithDefault ("s116Size", 0.0);
+
+                bool header = false;
+                for (auto* parent = l->getParentComponent(); parent != nullptr; parent = parent->getParentComponent())
+                    if (parent == &headerBar) header = true;
+
                 const bool variant = noShadow && noKern && integer && autoC && size >= 13.0
                                   && (!header || onDark);
                 if (verbose)
@@ -2316,40 +2399,6 @@ bool Simple106AudioProcessorEditor::auditTextLegibility (bool verbose) const
                               << " " << (variant ? "PASS" : "FAIL") << std::endl;
                 variantOk = variantOk && variant;
             }
-
-            std::cout << "  CONTRAST " << name << " ["
-                      << (comboText ? "combo" : (readout ? "readout" : (header ? "header" : "panel"))) << "]";
-            bool labelContrastOk = true;
-            for (int i = 0; i < 4; ++i)
-            {
-                const auto& t = themes[(size_t) i];
-                juce::Colour top, bottom, ink;
-                if (comboText) {
-                    top = t.selTop; bottom = t.selBottom; ink = t.selText;
-                } else if (kitReadout) {
-                    top = t.plateTop; bottom = t.plateBottom; ink = t.ledReadout;
-                } else if (readout) {
-                    top = t.panelTop; bottom = t.panelBottom; ink = t.caption;
-                } else {
-                    if (header) { top = t.hdrTop; bottom = t.hdrBottom; }
-                    else        { top = t.panelTop; bottom = t.panelBottom; }
-
-                    if (styled && autoC)
-                        ink = onDark ? S116::readableTextColour (top, true)
-                                     : S116::readableTextColour (top);
-                    else if (style == "caption") ink = t.caption;
-                    else if (style == "field")   ink = t.heading;
-                    else if (style == "accent")  ink = t.logoAccent;
-                    else                         ink = t.sub;
-                }
-
-                const float cr = juce::jmin (S116::contrastRatioOf (ink, top),
-                                             S116::contrastRatioOf (ink, bottom));
-                std::cout << " " << themeNames[i] << "=" << juce::String (cr, 2);
-                labelContrastOk = labelContrastOk && (cr >= 4.5f);
-            }
-            std::cout << " " << (labelContrastOk ? "PASS" : "FAIL") << std::endl;
-            contrastOk = contrastOk && labelContrastOk;
         }
 
         for (auto* child : c.getChildren())
@@ -2360,75 +2409,129 @@ bool Simple106AudioProcessorEditor::auditTextLegibility (bool verbose) const
 
     if (verbose)
         std::cout << "  TEXT LEGIBILITY fit=" << (fitOk ? "PASS" : "FAIL")
-                  << " variant=" << (variantOk ? "PASS" : "FAIL")
-                  << " contrast=" << (contrastOk ? "PASS" : "FAIL") << std::endl;
+                  << " variant=" << (variantOk ? "PASS" : "FAIL") << std::endl;
 
-    ok = fitOk && variantOk && contrastOk;
+    ok = fitOk && variantOk;
     return ok;
 }
 
-bool Simple106AudioProcessorEditor::auditKeyboardTextContrast (bool verbose) const
+bool Simple106AudioProcessorEditor::auditComboItemFit (bool verbose) const
 {
     bool ok = true;
-    const std::array<S116::ThemeId, 4> ids = {
-        S116::ThemeId::ClassicSilver, S116::ThemeId::JP8000Blue,
-        S116::ThemeId::SH101Red,      S116::ThemeId::GraphiteRed
-    };
-    const char* themeNames[] = { "CS", "JP", "SH", "G" };
-    const auto ledBase = kLedBaseColours[juce::jlimit (0, 6, currentThemeIdx)];
+    const auto font = S116::skin().mono (S106Type::kCombo);
 
-    struct Category { const char* name; int pointSize; };
-    const Category categories[] = {
-        { "OCTAVE", 11 }, { "OCT -/+", 12 }, { "WHITE KEY NAMES (15)", 12 }, { "BLACK KEY NAMES (10)", 11 }
-    };
-
-    std::array<S116::Theme, 4> themes;
-    for (int i = 0; i < 4; ++i) {
-        themes[(size_t) i] = S116::Theme::make (ids[(size_t) i]);
-        themes[(size_t) i].applyLed (ledBase);
-    }
-
-    for (const auto& cat : categories)
-    {
-        if (verbose)
-            std::cout << "  KEYBOARD TEXT " << cat.name << " " << cat.pointSize << "px";
-        bool categoryOk = true;
-        for (int i = 0; i < 4; ++i)
+    std::function<void(juce::Component&)> visit = [&](juce::Component& c) {
+        if (auto* box = dynamic_cast<juce::ComboBox*> (&c); box != nullptr && box->isVisible())
         {
-            const auto& t = themes[(size_t) i];
-            juce::Colour top, bottom, ink;
-            if (juce::String (cat.name) == "OCTAVE") {
-                top = t.plateTop; bottom = t.plateBottom; ink = S116::readableTextColour (top);
-            } else if (juce::String (cat.name) == "OCT -/+") {
-                top = t.btnTop; bottom = t.btnBottom; ink = S116::readableTextColour (top);
-            } else if (juce::String (cat.name).startsWith ("WHITE")) {
-                top = juce::Colour (0xfff8f9fb); bottom = juce::Colour (0xffd4d9e2);
-                ink = S116::readableTextColour (top);
-            } else {
-                top = juce::Colour (0xff2c323c); bottom = juce::Colour (0xff181b21);
-                ink = S116::readableTextColour (top);
+            bool boxOk = true;
+            for (int i = 0; i < box->getNumItems(); ++i)
+            {
+                const auto item = box->getItemText (i);
+                if (item.isEmpty()) continue;
+                const auto tw = S116::textWidth (font, item);
+                const bool fits = tw + 38.0f <= (float) box->getWidth() + 0.5f;
+                if (verbose && ! fits)
+                    std::cout << "  COMBO FIT " << box->getName() << " \"" << item << "\" "
+                              << juce::String (tw + 38.0f, 1) << " > " << box->getWidth()
+                              << " FAIL (needs layout)" << std::endl;
+                boxOk = boxOk && fits;
             }
-            const float cr = juce::jmin (S116::contrastRatioOf (ink, top),
-                                         S116::contrastRatioOf (ink, bottom));
-            if (verbose) std::cout << " " << themeNames[i] << "=" << juce::String (cr, 2);
-            categoryOk = categoryOk && (cr >= 4.5f);
+            if (verbose)
+                std::cout << "  COMBO " << (box->getName().isNotEmpty() ? box->getName() : "unnamed")
+                          << " " << box->getWidth() << "px items=" << box->getNumItems()
+                          << " " << (boxOk ? "PASS" : "FAIL") << std::endl;
+            ok = ok && boxOk;
         }
-        if (verbose) std::cout << " " << (categoryOk ? "PASS" : "FAIL") << std::endl;
-        ok = ok && categoryOk;
-    }
 
+        for (auto* child : c.getChildren())
+            visit (*child);
+    };
+
+    visit (*const_cast<Simple106AudioProcessorEditor*> (this));
     return ok;
 }
 
-bool Simple106AudioProcessorEditor::auditSaveDialog (bool verbose) const
+bool Simple106AudioProcessorEditor::auditVoiceReadoutFit (bool verbose) const
 {
     bool ok = true;
-    const auto box = saveDialog.getDialogBounds();
+    const auto required = VoiceReadout::requiredSize();
+    const auto font = S116::skin().mono (S106Type::kReadout);
+    const char* widest[] = { "-100 ct", "L100", "R100", "MID" };
 
-    const auto titleFont  = S116::skin().ui (16.0f, 0.10f);
-    const auto labelFont  = S116::skin().ui (12.0f, 0.10f);
-    const auto editorFont = S116::skin().mono (13.0f);
-    const auto buttonFont = S116::skin().ui (12.0f, 0.10f);
+    for (int i = 0; i < 6; ++i)
+    {
+        const auto& readout = voiceReadouts[(size_t) i];
+        const auto b = readout.getBounds();
+        bool fit = b.getWidth() >= required.x && b.getHeight() >= required.y;
+        for (const auto* s : widest) {
+            juce::GlyphArrangement ga;
+            ga.addLineOfText (font, s, 0.0f, 0.0f);
+            const auto bb = ga.getBoundingBox (0, ga.getNumGlyphs(), true);
+            fit = fit && bb.getWidth() + 8.0f <= (float) b.getWidth() + 0.5f
+                      && bb.getHeight() + 8.0f <= (float) b.getHeight() + 0.5f;
+        }
+        if (verbose)
+            std::cout << "  VOICE READOUT " << (i + 1) << " plate=" << b.getWidth() << "x" << b.getHeight()
+                      << " required=" << required.x << "x" << required.y
+                      << " text=\"" << readout.getText() << "\" "
+                      << (fit ? "PASS" : "FAIL") << std::endl;
+        ok = ok && fit && b.getWidth() > 0 && b.getHeight() > 0;
+    }
+
+    // 3x2 grid: each readout must sit inside the voice panel content and not
+    // collide with its caption; the bounds/overlap audit covers siblings.
+    const auto content = juce::Rectangle<int> (4, 24, voicePanel.getWidth() - 8, voicePanel.getHeight() - 28);
+    for (int i = 0; i < 6; ++i) {
+        const bool inside = content.contains (voiceReadouts[(size_t) i].getBounds());
+        if (verbose && ! inside)
+            std::cout << "  VOICE READOUT " << (i + 1) << " leaves voice content FAIL" << std::endl;
+        ok = ok && inside;
+    }
+
+    if (verbose)
+        std::cout << "  VOICE READOUT GRID " << (ok ? "PASS" : "FAIL") << std::endl;
+    return ok;
+}
+
+namespace {
+    struct PixelRegion { juce::Rectangle<int> r; juce::String name; float fontPx; };
+
+    static int medianOf (std::vector<int>& v)
+    {
+        if (v.empty()) return 0;
+        std::sort (v.begin(), v.end());
+        return v[v.size() / 2];
+    }
+
+    static float pixelContrast (const juce::Image& img, juce::Rectangle<int> r, float fontPx)
+    {
+        r = r.getIntersection (img.getBounds());
+        if (r.getWidth() < 3 || r.getHeight() < 3) return 0.0f;
+
+        std::vector<int> rs, gs, bs;
+        auto add = [&] (int x, int y) {
+            const auto c = img.getPixelAt (x, y);
+            rs.push_back (c.getRed()); gs.push_back (c.getGreen()); bs.push_back (c.getBlue());
+        };
+        for (int x = r.getX(); x < r.getRight(); ++x) { add (x, r.getY()); add (x, r.getBottom() - 1); }
+        for (int y = r.getY() + 1; y < r.getBottom() - 1; ++y) { add (r.getX(), y); add (r.getRight() - 1, y); }
+
+        const juce::Colour bg ((juce::uint8) medianOf (rs),
+                               (juce::uint8) medianOf (gs),
+                               (juce::uint8) medianOf (bs));
+        float best = 0.0f;
+        for (int y = r.getY(); y < r.getBottom(); ++y)
+            for (int x = r.getX(); x < r.getRight(); ++x)
+                best = juce::jmax (best, S116::contrastRatioOf (img.getPixelAt (x, y), bg));
+        return best;
+    }
+}
+
+bool Simple106AudioProcessorEditor::auditPixelContrast (bool verbose)
+{
+    bool ok = true;
+    const auto savedTab = currentTab;
+    const auto savedDialog = saveDialog.isVisible();
 
     const std::array<S116::ThemeId, 4> ids = {
         S116::ThemeId::ClassicSilver, S116::ThemeId::JP8000Blue,
@@ -2437,67 +2540,147 @@ bool Simple106AudioProcessorEditor::auditSaveDialog (bool verbose) const
     const char* themeNames[] = { "CS", "JP", "SH", "G" };
     const char* ledNames[] = { "Red", "Cyan", "Green", "Amber", "Yellow", "Purple", "White" };
 
-    auto fits = [] (const juce::Font& font, const juce::String& text,
-                    juce::Rectangle<int> r) {
-        juce::GlyphArrangement glyphs;
-        glyphs.addLineOfText (font, text, 0.0f, 0.0f);
-        const auto bbox = glyphs.getBoundingBox (0, glyphs.getNumGlyphs(), true);
-        return bbox.getWidth() <= (float) r.getWidth() + 0.5f
-            && bbox.getHeight() <= (float) r.getHeight() + 0.5f;
+    auto setSkin = [this] (S116::ThemeId id, juce::Colour led) {
+        S116::skin().setTheme (id);
+        S116::skin().setLedColour (led);
+        S116::skin().sendSynchronousChangeMessage();
+        silverLookAndFeel.applyTheme();
+        sendLookAndFeelChange();
+        saveDialog.refreshTheme();
+        refreshFooterTheme();
+        repaint();
     };
 
-    const juce::Rectangle<int> titleBox (box.getX() + 14, box.getY(), box.getWidth() - 28, 36);
-    const juce::Rectangle<int> labelBox (box.getX() + 24, box.getY() + 48, box.getWidth() - 48, 16);
-    const juce::Rectangle<int> editorBox (box.getX() + 24, box.getY() + 66, box.getWidth() - 48, 32);
-    const juce::Rectangle<int> buttonBox (95, 34);
+    auto addRegion = [] (std::vector<PixelRegion>& regions, juce::Rectangle<int> r,
+                         const juce::String& name, float fontPx) {
+        if (! r.isEmpty()) regions.push_back ({ r, name, fontPx });
+    };
 
     for (int ti = 0; ti < 4; ++ti)
     {
         for (int li = 0; li < 7; ++li)
         {
-            auto t = S116::Theme::make (ids[(size_t) ti]);
-            t.applyLed (kLedBaseColours[li]);
+            setSkin (ids[(size_t) ti], kLedBaseColours[li]);
+            saveDialog.setVisible (false);
+            double themeWorst = 1.0e9;
+            juce::String themeWorstName;
+            bool themeFailed = false;
 
-            const float titleCr = juce::jmin (S116::contrastRatioOf (t.logo, t.hdrTop),
-                                              S116::contrastRatioOf (t.logo, t.hdrBottom));
-            const float labelCr = juce::jmin (S116::contrastRatioOf (t.heading, t.panelTop),
-                                              S116::contrastRatioOf (t.heading, t.panelBottom));
-            const float textCr  = S116::contrastRatioOf (t.ledText, t.lcdTop);
-            const float caretCr = S116::contrastRatioOf (t.ledOn, t.lcdTop);
-            const float selBgCr = S116::contrastRatioOf (t.ledOn, t.lcdTop);
-            const float selTextCr = S116::contrastRatioOf (t.lcdBottom, t.ledOn);
-            const float outlineCr = juce::jmin (S116::contrastRatioOf (t.heading, t.panelTop),
-                                                S116::contrastRatioOf (t.heading, t.panelBottom));
+            for (int tab = 0; tab < 2; ++tab)
+            {
+                currentTab = tab;
+                layout();
+                repaint();
+                const auto img = createComponentSnapshot (getLocalBounds(), true, 1.0f);
 
-            const bool lightFace = t.btnTop.interpolatedWith (t.btnBottom, 0.5f)
-                                       .getPerceivedBrightness() > 0.55f;
-            const auto btnInk = lightFace ? juce::Colour (0xff14171a) : t.btnText;
-            const float btnCr = juce::jmin (S116::contrastRatioOf (btnInk, t.btnTop),
-                                            S116::contrastRatioOf (btnInk, t.btnBottom));
+                std::vector<PixelRegion> regions;
+                std::function<void(juce::Component&)> visit = [&](juce::Component& c) {
+                    if (! c.isShowing()) return;
+                    if (auto* l = dynamic_cast<juce::Label*> (&c); l != nullptr) {
+                        if (dynamic_cast<juce::ComboBox*> (l->getParentComponent()) == nullptr
+                            && dynamic_cast<juce::Slider*> (l->getParentComponent()) == nullptr)
+                            addRegion (regions, getLocalArea (l, l->getLocalBounds()),
+                                       "label:" + l->getText(), auditFontForLabel (*l).getHeight());
+                    } else if (auto* box = dynamic_cast<juce::ComboBox*> (&c); box != nullptr) {
+                        addRegion (regions, getLocalArea (box, box->getLocalBounds()),
+                                   "combo:" + box->getText(), S106Type::kCombo);
+                    } else if (auto* b = dynamic_cast<juce::TextButton*> (&c); b != nullptr) {
+                        const bool compact = (bool) b->getProperties().getWithDefault ("s116Compact", false);
+                        addRegion (regions, getLocalArea (b, b->getLocalBounds()),
+                                   "button:" + b->getButtonText(), compact ? 12.0f : 14.0f);
+                    } else if (auto* p = dynamic_cast<S116::SectionPanel*> (&c); p != nullptr) {
+                        juce::String title = "panel title";
+                        for (const auto& pt : panelTitles)
+                            if (pt.first == p) title = pt.second;
+                        addRegion (regions, getLocalArea (p, juce::Rectangle<int> (6, 2, p->getWidth() - 12, 20)),
+                                   "title:" + title, S106Type::kPanelTitle);
+                    } else if (auto* vr = dynamic_cast<VoiceReadout*> (&c); vr != nullptr) {
+                        addRegion (regions, getLocalArea (vr, vr->getLocalBounds()),
+                                   "voice readout", S106Type::kReadout);
+                    } else if (auto* sr = dynamic_cast<SegmentReadout*> (&c); sr != nullptr) {
+                        addRegion (regions, getLocalArea (sr, sr->getLocalBounds()),
+                                   "segment readout", 18.0f);
+                    }
 
-            const float minCr = std::min ({ titleCr, labelCr, textCr, caretCr,
-                                            selBgCr, selTextCr, outlineCr, btnCr });
-            const bool textFits = fits (titleFont, "SAVE CUSTOM PATCH", titleBox)
-                               && fits (labelFont, "PATCH NAME", labelBox)
-                               && fits (editorFont, "My Patch", editorBox)
-                               && fits (buttonFont, "SAVE", buttonBox)
-                               && fits (buttonFont, "CANCEL", buttonBox);
-            const bool pass = minCr >= 4.5f && textFits;
+                    for (auto* child : c.getChildren())
+                        visit (*child);
+                };
+                visit (*this);
+
+                addRegion (regions, juce::Rectangle<int> (headerBar.getX() + 24, headerBar.getY(),
+                                                           (int) headerBar.getLogoRight() - 24, headerBar.getHeight()),
+                           "header logo", 40.0f);
+                addRegion (regions, headerLcd.getBounds() + headerBar.getPosition(),
+                           "header LCD", S106Type::kHeaderLcd);
+
+                for (const auto& tr : buttonKeyboard.getTextRegions())
+                    addRegion (regions, getLocalArea (&buttonKeyboard, tr.bounds),
+                               "keyboard:" + tr.text, tr.fontSize);
+
+                for (const auto& reg : regions)
+                {
+                    const auto cr = pixelContrast (img, reg.r, reg.fontPx);
+                    const float threshold = reg.fontPx >= 18.0f ? 3.0f : 4.5f;
+                    if (cr < threshold) {
+                        themeFailed = true;
+                        std::cout << "  PIXEL FAIL " << themeNames[ti] << " " << ledNames[li]
+                                  << " tab" << tab << " " << reg.name << " " << juce::String (cr, 2)
+                                  << " < " << juce::String (threshold, 1) << std::endl;
+                    }
+                    if (cr < themeWorst) { themeWorst = cr; themeWorstName = reg.name; }
+                }
+
+            }
+
+            // The dialog is a modal overlay; snapshot its own box/text regions.
+            saveDialog.setVisible (true);
+            saveDialog.toFront (true);
+            saveDialog.open();
+            const auto dlgImg = saveDialog.createComponentSnapshot (saveDialog.getLocalBounds(), true, 1.0f);
+            const auto box = saveDialog.getDialogBounds();
+            {
+                std::vector<PixelRegion> dregions;
+                addRegion (dregions, { box.getX() + 14, box.getY(), box.getWidth() - 28, 36 }, "dialog title", 16.0f);
+                addRegion (dregions, { box.getX() + 24, box.getY() + 48, box.getWidth() - 48, fieldBoxHeight() }, "dialog label", S106Type::kField);
+                addRegion (dregions, { box.getX() + 27, box.getY() + 73, box.getWidth() - 54, 26 }, "dialog editor", S106Type::kReadout);
+                addRegion (dregions, { box.getX() + 80, box.getY() + 122, 95, 34 }, "dialog SAVE", 12.0f);
+                addRegion (dregions, { box.getX() + 205, box.getY() + 122, 95, 34 }, "dialog CANCEL", 12.0f);
+
+                for (const auto& reg : dregions)
+                {
+                    const auto cr = pixelContrast (dlgImg, reg.r, reg.fontPx);
+                    const float threshold = reg.fontPx >= 18.0f ? 3.0f : 4.5f;
+                    if (cr < threshold) {
+                        themeFailed = true;
+                        std::cout << "  PIXEL FAIL " << themeNames[ti] << " " << ledNames[li]
+                                  << " dialog " << reg.name << " " << juce::String (cr, 2)
+                                  << " < " << juce::String (threshold, 1) << std::endl;
+                    }
+                    if (cr < themeWorst) { themeWorst = cr; themeWorstName = reg.name; }
+                }
+            }
+            hideSaveDialog();
+
             if (verbose)
-                std::cout << "  SAVE DIALOG " << themeNames[ti] << " " << ledNames[li]
-                          << " title=" << juce::String (titleCr, 2)
-                          << " label=" << juce::String (labelCr, 2)
-                          << " text=" << juce::String (textCr, 2)
-                          << " caret=" << juce::String (caretCr, 2)
-                          << " selBg=" << juce::String (selBgCr, 2)
-                          << " selText=" << juce::String (selTextCr, 2)
-                          << " outline=" << juce::String (outlineCr, 2)
-                          << " btn=" << juce::String (btnCr, 2)
-                          << " fit=" << (textFits ? "PASS" : "FAIL")
-                          << " " << (pass ? "PASS" : "FAIL") << std::endl;
-            ok = ok && pass;
+                std::cout << "  PIXEL " << themeNames[ti] << " " << ledNames[li]
+                          << " min=" << juce::String (themeWorst, 2)
+                          << " " << themeWorstName << " "
+                          << (themeFailed ? "FAIL" : "PASS") << std::endl;
+            ok = ok && ! themeFailed;
         }
     }
+
+    saveDialog.setVisible (savedDialog);
+    currentTab = savedTab;
+    S116::skin().setTheme (mapChassisTheme (currentChassisThemeIdx));
+    S116::skin().setLedColour (kLedBaseColours[juce::jlimit (0, 6, currentThemeIdx)]);
+    S116::skin().sendSynchronousChangeMessage();
+    silverLookAndFeel.applyTheme();
+    sendLookAndFeelChange();
+    saveDialog.refreshTheme();
+    refreshFooterTheme();
+    layout();
+    repaint();
 
     return ok;
 }
@@ -2519,7 +2702,7 @@ void Simple106AudioProcessorEditor::runDebugAudit()
         setSize (size.first, size.second);
         resized();
 
-        std::cout << "\n=== C2 AUDIT " << size.first << "x" << size.second << " ===" << std::endl;
+        std::cout << "\n=== C3 AUDIT " << size.first << "x" << size.second << " ===" << std::endl;
 
         bool ok = true;
         collectBounds (*this, "EDITOR", true, ok);
@@ -2570,9 +2753,10 @@ void Simple106AudioProcessorEditor::runDebugAudit()
             if (!voiceLabelsOk) ok = false;
         }
 
-        ok = auditSaveDialog (true) && ok;
         ok = auditTextLegibility (true) && ok;
-        ok = auditKeyboardTextContrast (true) && ok;
+        ok = auditComboItemFit (true) && ok;
+        ok = auditVoiceReadoutFit (true) && ok;
+        ok = auditPixelContrast (true) && ok;
         ok = auditFocus (true) && ok;
         ok = auditAttachments (true) && ok;
         ok = auditVoiceMatrix (true) && ok;
@@ -2580,7 +2764,7 @@ void Simple106AudioProcessorEditor::runDebugAudit()
         ok = auditFooter (true) && ok;
         ok = auditReadoutStrings (true) && ok;
 
-        std::cout << "=== C2 AUDIT " << size.first << "x" << size.second
+        std::cout << "=== C3 AUDIT " << size.first << "x" << size.second
                   << (ok ? " PASS" : " FAIL") << " ===" << std::endl;
         jassert (ok);
         allOk = allOk && ok;
@@ -2692,8 +2876,8 @@ void Simple106AudioProcessorEditor::runDebugAudit()
         check ("PAGE READOUT", page1 == (page0 + 1) % juce::jmax (1, maxPages) && pageDisplayOk);
     }
 
-    std::cout << (behaviourOk ? "C2 BEHAVIOUR PASS" : "C2 BEHAVIOUR FAIL") << std::endl;
+    std::cout << (behaviourOk ? "C3 BEHAVIOUR PASS" : "C3 BEHAVIOUR FAIL") << std::endl;
     allOk = allOk && behaviourOk;
-    std::cout << (allOk ? "C2 AUDIT PASS" : "C2 AUDIT FAIL") << std::endl;
+    std::cout << (allOk ? "C3 AUDIT PASS" : "C3 AUDIT FAIL") << std::endl;
 }
 #endif

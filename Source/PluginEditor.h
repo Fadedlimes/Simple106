@@ -4,6 +4,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "PluginProcessor.h"
 
+#include "S106TypeSizes.h"
 #include "S116Theme.h"
 #include "SkinManager.h"
 // Explicit path: Source/UI also contains a legacy header with this class name.
@@ -21,6 +22,15 @@
 #include <map>
 #include <memory>
 #include <vector>
+
+class Simple106LookAndFeel : public SilverLookAndFeel
+{
+public:
+    juce::Font getComboBoxFont (juce::ComboBox&) override
+    {
+        return S116::skin().mono (S106Type::kCombo);
+    }
+};
 
 // Footer readout: kit LCD plate with the original 7-segment drawing.
 class SegmentReadout : public S116::LcdPlate {
@@ -42,6 +52,21 @@ private:
     juce::String text;
     float charW;
     int inset;
+};
+
+class VoiceReadout : public S116::LcdPlate
+{
+public:
+    VoiceReadout();
+    void setText (const juce::String& newText);
+    juce::String getText() const { return text; }
+    static juce::Point<int> requiredSize();
+
+protected:
+    void paintDynamic (juce::Graphics&) override;
+
+private:
+    juce::String text;
 };
 
 // Voice panel: panel skin + the six live voice LEDs, driven by isVoiceActive().
@@ -80,7 +105,8 @@ private:
 class Simple106AudioProcessorEditor : public juce::AudioProcessorEditor,
                                       public juce::KeyListener,
                                       private juce::Timer,
-                                      private juce::ChangeListener
+                                      private juce::ChangeListener,
+                                      private juce::Slider::Listener
 {
 public:
     static constexpr int NUM_CHASSIS_THEMES = 4;
@@ -143,6 +169,8 @@ private:
     S116::ThemeId mapChassisTheme (int index) const;
     void refreshFooterTheme();
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
+    void sliderValueChanged (juce::Slider*) override;
+    void refreshVoiceReadouts();
 
     void showSaveDialog();
     void hideSaveDialog();
@@ -159,8 +187,8 @@ private:
 
     void placeBare (juce::Slider& slider, juce::Label& caption, juce::Rectangle<int> cell,
                     const juce::String& name);
-    void placeVoice (juce::Slider& slider, juce::Label& caption, juce::Rectangle<int> cell,
-                     const juce::String& name);
+    void placeVoice (juce::Slider& slider, juce::Label& caption, VoiceReadout& readout,
+                     juce::Rectangle<int> cell, const juce::String& name);
 
     void showSliderValue (juce::Slider* slider);
     void setIdleHeaderLcd();
@@ -177,12 +205,13 @@ private:
     bool auditFooter (bool verbose) const;
     bool auditReadoutStrings (bool verbose) const;
     bool auditTextLegibility (bool verbose) const;
-    bool auditKeyboardTextContrast (bool verbose) const;
-    bool auditSaveDialog (bool verbose) const;
+    bool auditComboItemFit (bool verbose) const;
+    bool auditVoiceReadoutFit (bool verbose) const;
+    bool auditPixelContrast (bool verbose);
 #endif
 
     Simple106AudioProcessor& audioProcessor;
-    SilverLookAndFeel silverLookAndFeel;
+    Simple106LookAndFeel silverLookAndFeel;
 
     // Kit backdrops / pages / panels
     S116::ChassisBackground chassisBg;
@@ -250,6 +279,7 @@ private:
 
     // Voice Variation Matrix
     LabeledSlider voiceKnobs[6];
+    std::array<VoiceReadout, 6> voiceReadouts;
     juce::ComboBox voiceVarModeBox;
     juce::Label voiceVarLabel;
     juce::TextButton cycleBtn { "CYCLE" };

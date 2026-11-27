@@ -49,6 +49,7 @@ target_sources(Simple106 PRIVATE
     Source/PluginProcessor.h
     Source/PluginEditor.cpp
     Source/PluginEditor.h
+    Source/S106TypeSizes.h
     Source/UI/VintageButtonKeyboard.h
     Source/DSP/PolyBLEPOscillator.h
     Source/DSP/JunoFilter.h
