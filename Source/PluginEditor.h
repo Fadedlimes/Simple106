@@ -27,7 +27,9 @@ class SegmentReadout : public S116::LcdPlate {
 public:
     SegmentReadout(float charWidth, int insetX);
     void setText(const juce::String& newText);
+#if S106_DEBUG_AUDIT
     juce::String getText() const { return text; }
+#endif
     int requiredWidthFor(const juce::String& s) const;
 
 protected:
@@ -113,12 +115,14 @@ private:
         juce::Label label;
     };
 
+#if S106_DEBUG_AUDIT
     struct KnobCellRef {
         juce::Slider* slider = nullptr;
         juce::Label* caption = nullptr;
         juce::Rectangle<int> cell;   // local to the slider's parent
         juce::String name;
     };
+#endif
 
     bool handleKeyPress (const juce::KeyPress& key);
     bool handleKeyStateChanged (bool isKeyDown);
@@ -291,13 +295,12 @@ private:
 
     // Layout (single source of truth)
     juce::Rectangle<int> headerRect, bodyRect, footerRect;
-    std::array<juce::Rectangle<int>, 8> synthPanelRects {};
-    std::array<juce::Rectangle<int>, 3> fxPanelRects {};
     std::array<juce::Rectangle<int>, 8> synthPanelContent {};
     std::array<juce::Rectangle<int>, 3> fxPanelContent {};
-    juce::Rectangle<int> footerContent;
+#if S106_DEBUG_AUDIT
     std::vector<KnobCellRef> knobCells;
     std::vector<std::pair<S116::SectionPanel*, juce::String>> panelTitles;
+#endif
 
     // Attachments
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> sliderAttachments;

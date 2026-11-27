@@ -1,14 +1,15 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-#include <algorithm>
 #include <atomic>
 #include <cctype>
 #include <cmath>
-#include <cstdlib>
+#if S106_DEBUG_AUDIT
+#include <algorithm>
 #include <set>
 #include <string>
 #include <utility>
+#endif
 
 struct QwertyKeyMap {
     int keyCode;
@@ -542,6 +543,7 @@ Simple106AudioProcessorEditor::Simple106AudioProcessorEditor(Simple106AudioProce
     prepPanel(footerPanel, "SEQUENCER & KEYBOARD");
     addAndMakeVisible(footerPanel);
 
+#if S106_DEBUG_AUDIT
     panelTitles = {
         { &dcoPanel, "DCO 1 & DCO 2" },
         { &filterPanel, "HPF & 24dB VCF" },
@@ -556,6 +558,7 @@ Simple106AudioProcessorEditor::Simple106AudioProcessorEditor(Simple106AudioProce
         { &reverbPanel, "LUSH DIGITAL REVERB" },
         { &footerPanel, "SEQUENCER & KEYBOARD" }
     };
+#endif
 
     // --- DCO 1 ---
     setupControl(dco1Morph,  "dco1Morph",  "MORPH",  dcoPanel);
@@ -1277,7 +1280,9 @@ void Simple106AudioProcessorEditor::placeBare(juce::Slider& slider, juce::Label&
     const int square = S116::layout::placeBareKnob(slider, cell.getX(), cell.getY(),
                                                    cell.getWidth(), kSmallBody);
     caption.setBounds(cell.getX(), cell.getY() + square, cell.getWidth(), 16);
+#if S106_DEBUG_AUDIT
     knobCells.push_back({ &slider, &caption, cell, name });
+#endif
 }
 
 void Simple106AudioProcessorEditor::placeVoice(juce::Slider& slider, juce::Label& caption,
@@ -1285,7 +1290,9 @@ void Simple106AudioProcessorEditor::placeVoice(juce::Slider& slider, juce::Label
 {
     S116::layout::placeKnob(slider, caption, cell.getX(), cell.getY(),
                             cell.getWidth(), kSmallBody, false);
+#if S106_DEBUG_AUDIT
     knobCells.push_back({ &slider, &caption, cell, name });
+#endif
 }
 
 void Simple106AudioProcessorEditor::layoutHeader()
@@ -1350,7 +1357,6 @@ void Simple106AudioProcessorEditor::layoutSynthPage()
 
     auto setPanel = [&](S116::SectionPanel& panel, juce::Rectangle<int> editorRect, int idx) {
         panel.setBounds(editorRect.translated(-bodyRect.getX(), -bodyRect.getY()));
-        synthPanelRects[(size_t) idx] = editorRect;
         synthPanelContent[(size_t) idx] = { 4, 24,
                                             panel.getWidth() - 8,
                                             panel.getHeight() - 28 };
@@ -1535,7 +1541,6 @@ void Simple106AudioProcessorEditor::layoutFxPage()
 
     auto setPanel = [&](S116::SectionPanel& panel, juce::Rectangle<int> editorRect, int idx) {
         panel.setBounds(editorRect.translated(-bodyRect.getX(), -bodyRect.getY()));
-        fxPanelRects[(size_t) idx] = editorRect;
         fxPanelContent[(size_t) idx] = { 4, 24,
                                          panel.getWidth() - 8,
                                          panel.getHeight() - 28 };
@@ -1590,8 +1595,6 @@ void Simple106AudioProcessorEditor::layoutFooter()
     const auto C = juce::Rectangle<int>(4, 24,
                                         footerPanel.getWidth() - 8,
                                         footerPanel.getHeight() - 28);
-    footerContent = C;
-
     int x = C.getX();
     const int y = C.getY();
 
@@ -1668,7 +1671,9 @@ void Simple106AudioProcessorEditor::layout()
     synthPage.setVisible(currentTab == 0);
     fxPage.setVisible(currentTab == 1);
 
+#if S106_DEBUG_AUDIT
     knobCells.clear();
+#endif
 
     layoutHeader();
     layoutSynthPage();

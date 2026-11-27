@@ -49,7 +49,6 @@ target_sources(Simple106 PRIVATE
     Source/PluginProcessor.h
     Source/PluginEditor.cpp
     Source/PluginEditor.h
-    Source/UI/SilverLookAndFeel.h
     Source/UI/VintageButtonKeyboard.h
     Source/DSP/PolyBLEPOscillator.h
     Source/DSP/JunoFilter.h
@@ -64,7 +63,7 @@ target_sources(Simple106 PRIVATE
 )
 
 # 4. Include Folders
-target_include_directories(Simple106 PRIVATE Source Source/DSP Source/UI)
+target_include_directories(Simple106 PRIVATE Source Source/DSP)
 
 # 5. Compiler Flags (Safe check across GCC, Clang, and MSVC)
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
