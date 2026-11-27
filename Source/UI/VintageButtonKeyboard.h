@@ -44,6 +44,10 @@ public:
     void paint(juce::Graphics& g) override {
         auto bounds = getLocalBounds().toFloat();
         const auto& t = S116::skin().theme();
+        const auto octaveInk   = S116::readableTextColour (t.plateTop);
+        const auto octButtonInk = S116::readableTextColour (t.btnTop);
+        const auto whiteKeyInk = S116::readableTextColour (juce::Colour (0xfff8f9fb));
+        const auto blackKeyInk = S116::readableTextColour (juce::Colour (0xff2c323c));
 
         // Background tray
         g.setGradientFill (juce::ColourGradient::vertical (t.panelTop, bounds.getY(),
@@ -60,9 +64,13 @@ public:
         g.setColour(t.btnRing);
         g.drawRoundedRectangle(octArea, 3.0f, 1.0f);
 
-        g.setColour(t.heading);
-        g.setFont(S116::skin().ui(9.0f, 0.10f));
-        g.drawText("OCTAVE", octArea.getX(), octArea.getY() + 4.0f, octArea.getWidth(), 12.0f, juce::Justification::centred);
+        g.setColour(octaveInk);
+        g.setFont(S116::skin().ui(11.0f, 0.10f));
+        g.drawText("OCTAVE",
+                   juce::Rectangle<int> (juce::roundToInt (octArea.getX()),
+                                         juce::roundToInt (octArea.getY()) + 3,
+                                         juce::roundToInt (octArea.getWidth()), 14),
+                   juce::Justification::centred);
 
         // Octave 5-dot LED ladder
         for (int i = -2; i <= 2; ++i) {
@@ -90,9 +98,9 @@ public:
             g.fillRoundedRectangle(b.reduced(1.0f), 2.5f);
             g.setColour(t.btnRing);
             g.drawRoundedRectangle(b.reduced(1.0f), 2.5f, 1.0f);
-            g.setColour(t.btnText);
-            g.setFont(S116::skin().ui(11.0f, 0.10f));
-            g.drawText(text, b, juce::Justification::centred);
+            g.setColour(octButtonInk);
+            g.setFont(S116::skin().ui(12.0f, 0.10f));
+            g.drawText(text, b.toNearestInt(), juce::Justification::centred);
         };
         drawOctBtn(octDownBounds, "OCT -", mouseDownOctDown);
         drawOctBtn(octUpBounds,   "OCT +", mouseDownOctUp);
@@ -135,9 +143,13 @@ public:
                 drawKeyLED(g, ledX, ledY, keyIdx);
 
                 // Note label
-                g.setColour(t.ruleDark);
-                g.setFont(S116::skin().ui(9.5f, 0.10f));
-                g.drawText(noteNames[keyIdx], keyRect.getX(), keyRect.getBottom() - 18.0f, keyRect.getWidth(), 14.0f, juce::Justification::centred);
+                g.setColour(whiteKeyInk);
+                g.setFont(S116::skin().ui(12.0f, 0.10f));
+                g.drawText(noteNames[keyIdx],
+                           juce::Rectangle<int> (juce::roundToInt (keyRect.getX()),
+                                                 juce::roundToInt (keyRect.getBottom()) - 18,
+                                                 juce::roundToInt (keyRect.getWidth()), 14),
+                           juce::Justification::centred);
             }
 
             // 2. Draw 10 Black Keys
@@ -171,9 +183,13 @@ public:
                 drawKeyLED(g, ledX, ledY, keyIdx);
 
                 // Note label
-                g.setColour(t.caption);
-                g.setFont(S116::skin().ui(8.5f, 0.10f));
-                g.drawText(noteNames[keyIdx], keyRect.getX(), keyRect.getBottom() - 15.0f, keyRect.getWidth(), 12.0f, juce::Justification::centred);
+                g.setColour(blackKeyInk);
+                g.setFont(S116::skin().ui(11.0f, 0.10f));
+                g.drawText(noteNames[keyIdx],
+                           juce::Rectangle<int> (juce::roundToInt (keyRect.getX()),
+                                                 juce::roundToInt (keyRect.getBottom()) - 15,
+                                                 juce::roundToInt (keyRect.getWidth()), 12),
+                           juce::Justification::centred);
             }
     }
 

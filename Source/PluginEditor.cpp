@@ -72,6 +72,27 @@ namespace {
     const char* const kStepNames[]  = { "16", "32", "48", "64" };
 }
 
+// v1.5.1 variant E: one solid auto-contrast ink, no shadow, no extra kerning,
+// integer label bounds and 14 px text (fields may use 13 if 14 does not fit).
+static void applyLegibleLabel (juce::Label& l, float size, bool onDark = false)
+{
+    auto& p = l.getProperties();
+    p.set ("s116NoShadow", true);
+    p.set ("s116NoKerning", true);
+    p.set ("s116IntegerText", true);
+    p.set ("s116AutoContrast", true);
+    p.set ("s116Size", size);
+    if (onDark) p.set ("s116OnDark", true);
+}
+
+static void placeLegibleField (juce::ComboBox& box, juce::Label& label,
+                               int x, int y, int w)
+{
+    S116::layout::placeField (box, label, x, y, w);
+    // 14 px needs a 16 px label box; the combo stays at y + 20.
+    label.setBounds (x, y - 2, w, 16);
+}
+
 // ==============================================================================
 // Footer segment readout
 // ==============================================================================
@@ -343,17 +364,18 @@ Simple106AudioProcessorEditor::Simple106AudioProcessorEditor(Simple106AudioProce
     headerBar.setLogo("S", "-", "106");
     addAndMakeVisible(headerBar);
 
-    auto prepLabel = [](juce::Label& l, const juce::String& text, bool field) {
+    auto prepLabel = [](juce::Label& l, const juce::String& text, bool field, bool onDark) {
         l.setText(text, juce::dontSendNotification);
         l.setName(text);
         if (field) S116::layout::styleField(l);
         else       S116::layout::styleCaption(l);
+        applyLegibleLabel(l, 14.0f, onDark);
         l.setWantsKeyboardFocus(false);
         l.setMouseClickGrabsKeyboardFocus(false);
     };
 
     // Header
-    prepLabel(presetLabel, "PATCH", true);
+    prepLabel(presetLabel, "PATCH", true, true);
     headerBar.addAndMakeVisible(presetLabel);
 
     refreshPresetList();
@@ -389,7 +411,7 @@ Simple106AudioProcessorEditor::Simple106AudioProcessorEditor(Simple106AudioProce
     };
     headerBar.addAndMakeVisible(initPresetBtn);
 
-    prepLabel(chassisThemeLabel, "CHASSIS", true);
+    prepLabel(chassisThemeLabel, "CHASSIS", true, true);
     headerBar.addAndMakeVisible(chassisThemeLabel);
     chassisThemeBox.addItemList({ "Classic Silver", "JP-8000 Blue", "SH-101 Red", "Graphite" }, 1);
     chassisThemeBox.setName("CHASSIS");
@@ -406,7 +428,7 @@ Simple106AudioProcessorEditor::Simple106AudioProcessorEditor(Simple106AudioProce
     };
     headerBar.addAndMakeVisible(chassisThemeBox);
 
-    prepLabel(ledThemeLabel, "LED COLOUR", true);
+    prepLabel(ledThemeLabel, "LED COLOUR", true, true);
     headerBar.addAndMakeVisible(ledThemeLabel);
     themeBox.addItemList({ "Red", "Cyan", "Green", "Amber", "Yellow", "Purple", "White" }, 1);
     themeBox.setName("LED COLOUR");
@@ -622,6 +644,8 @@ Simple106AudioProcessorEditor::Simple106AudioProcessorEditor(Simple106AudioProce
     for (int i = 0; i < 6; ++i)
     {
         auto& vk = voiceKnobs[i];
+        S116::layout::styleCaption(vk.label);
+        applyLegibleLabel(vk.label, 14.0f);
         vk.label.setWantsKeyboardFocus(false);
         vk.label.setMouseClickGrabsKeyboardFocus(false);
         vk.label.setInterceptsMouseClicks(false, false);
@@ -794,11 +818,11 @@ Simple106AudioProcessorEditor::Simple106AudioProcessorEditor(Simple106AudioProce
         }
     };
 
-    prepLabel(stepsLabel, "STEPS", true);
+    prepLabel(stepsLabel, "STEPS", true, false);
     stepsLabel.setJustificationType(juce::Justification::centredRight);
     footerPanel.addAndMakeVisible(stepsLabel);
 
-    prepLabel(pageLabel, "PAGE", true);
+    prepLabel(pageLabel, "PAGE", true, false);
     pageLabel.setJustificationType(juce::Justification::centredRight);
     footerPanel.addAndMakeVisible(pageLabel);
 
@@ -1161,6 +1185,7 @@ void Simple106AudioProcessorEditor::setupControl(LabeledSlider& ctrl, const juce
 {
     ctrl.label.setText(labelText, juce::dontSendNotification);
     S116::layout::styleCaption(ctrl.label);
+    applyLegibleLabel(ctrl.label, 14.0f);
     ctrl.label.setName(labelText);
     ctrl.label.setWantsKeyboardFocus(false);
     ctrl.label.setMouseClickGrabsKeyboardFocus(false);
@@ -1191,6 +1216,7 @@ void Simple106AudioProcessorEditor::setupBox(juce::ComboBox& box, juce::Label& l
 {
     S116::layout::styleField(label);
     label.setText(text, juce::dontSendNotification);
+    applyLegibleLabel(label, 14.0f);
     label.setName(text);
     label.setWantsKeyboardFocus(false);
     label.setMouseClickGrabsKeyboardFocus(false);
@@ -1247,14 +1273,14 @@ void Simple106AudioProcessorEditor::layoutHeader()
     const int ledX = lcdX - 12 - ledW;
     const int chassisX = ledX - 6 - chassisW;
 
-    presetLabel.setBounds(presetX, 10, presetW, 14);
+    presetLabel.setBounds(presetX, 8, presetW, 16);
     presetBox.setBounds(presetX, 30, presetW, 32);
     savePresetBtn.setBounds(saveX, 19, saveW, 34);
     initPresetBtn.setBounds(initX, 19, initW, 34);
 
-    chassisThemeLabel.setBounds(chassisX, 10, chassisW, 14);
+    chassisThemeLabel.setBounds(chassisX, 8, chassisW, 16);
     chassisThemeBox.setBounds(chassisX, 30, chassisW, 32);
-    ledThemeLabel.setBounds(ledX, 10, ledW, 14);
+    ledThemeLabel.setBounds(ledX, 8, ledW, 16);
     themeBox.setBounds(ledX, 30, ledW, 32);
 
     headerLcd.setBounds(lcdX, 13, lcdW, 46);
@@ -1358,7 +1384,7 @@ void Simple106AudioProcessorEditor::layoutSynthPage()
         placeBare(ampR.slider, ampR.label, cell(3), "AMP RELEASE");
 
         const int row2 = C.getY() + ys[1];
-        S116::layout::placeField(playModeBox, playModeLabel, C.getX(), row2 + 14, 120);
+        placeLegibleField(playModeBox, playModeLabel, C.getX(), row2 + 14, 120);
         const int masterW = C.getWidth() - 3 * cw;
         placeBare(masterVol.slider, masterVol.label,
                   { C.getX() + 3 * cw, row2, masterW, 80 }, "MASTER VOLUME");
@@ -1375,8 +1401,8 @@ void Simple106AudioProcessorEditor::layoutSynthPage()
         placeBare(xmodAmount.slider, xmodAmount.label, { C.getX() + cw,     C.getY() + ys[0] + 88, cw, 80 }, "X-MOD");
 
         const int fieldW = (C.getWidth() - 8) / 2;
-        S116::layout::placeField(subOctBox, subOctLabel, C.getX(), C.getY() + ys[1], fieldW);
-        S116::layout::placeField(xmodModeBox, xmodModeLabel,
+        placeLegibleField(subOctBox, subOctLabel, C.getX(), C.getY() + ys[1], fieldW);
+        placeLegibleField(xmodModeBox, xmodModeLabel,
                                  C.getX() + fieldW + 8, C.getY() + ys[1], fieldW);
 
         syncBtn.setBounds(C.getX() + (C.getWidth() - 60) / 2, C.getY() + ys[2], 60, 34);
@@ -1388,7 +1414,7 @@ void Simple106AudioProcessorEditor::layoutSynthPage()
         // Keep the SHAPE row and knob row on the same baselines as LFO 2/3;
         // LFO 1 has no TARGET combo, so that row is intentionally empty.
         auto ys = S116::layout::distribute(C.getHeight(), { 52, 52, 80 }, 4);
-        S116::layout::placeField(lfo1ShapeBox, lfo1ShapeLabel, C.getX(),
+        placeLegibleField(lfo1ShapeBox, lfo1ShapeLabel, C.getX(),
                                  C.getY() + ys[0], juce::jmin(C.getWidth(), 110));
         const int cw = C.getWidth() / 3;
         auto cell = [&](int col) {
@@ -1403,9 +1429,9 @@ void Simple106AudioProcessorEditor::layoutSynthPage()
     {
         const auto C = synthPanelContent[5];
         auto ys = S116::layout::distribute(C.getHeight(), { 52, 52, 80 }, 4);
-        S116::layout::placeField(lfo2ShapeBox, lfo2ShapeLabel, C.getX(),
+        placeLegibleField(lfo2ShapeBox, lfo2ShapeLabel, C.getX(),
                                  C.getY() + ys[0], C.getWidth());
-        S116::layout::placeField(lfo2TargetBox, lfo2TargetLabel, C.getX(),
+        placeLegibleField(lfo2TargetBox, lfo2TargetLabel, C.getX(),
                                  C.getY() + ys[1], C.getWidth());
         const int cw = C.getWidth() / 2;
         placeBare(lfo2Rate.slider,   lfo2Rate.label,
@@ -1418,9 +1444,9 @@ void Simple106AudioProcessorEditor::layoutSynthPage()
     {
         const auto C = synthPanelContent[6];
         auto ys = S116::layout::distribute(C.getHeight(), { 52, 52, 80 }, 4);
-        S116::layout::placeField(lfo3ShapeBox, lfo3ShapeLabel, C.getX(),
+        placeLegibleField(lfo3ShapeBox, lfo3ShapeLabel, C.getX(),
                                  C.getY() + ys[0], C.getWidth());
-        S116::layout::placeField(lfo3TargetBox, lfo3TargetLabel, C.getX(),
+        placeLegibleField(lfo3TargetBox, lfo3TargetLabel, C.getX(),
                                  C.getY() + ys[1], C.getWidth());
         const int cw = C.getWidth() / 2;
         placeBare(lfo3Rate.slider,   lfo3Rate.label,
@@ -1433,7 +1459,7 @@ void Simple106AudioProcessorEditor::layoutSynthPage()
     {
         const auto C = synthPanelContent[7];
         auto ys = S116::layout::distribute(C.getHeight(), { 52, 107, 107 }, 4);
-        S116::layout::placeField(voiceVarModeBox, voiceVarLabel, C.getX(),
+        placeLegibleField(voiceVarModeBox, voiceVarLabel, C.getX(),
                                  C.getY() + ys[0], 120);
         cycleBtn.setBounds(C.getX() + 128, C.getY() + ys[0] + 9, 60, 34);
 
@@ -1486,7 +1512,7 @@ void Simple106AudioProcessorEditor::layoutFxPage()
     {
         const auto C = fxPanelContent[0];
         const int fieldW = juce::jmin(200, C.getWidth());
-        S116::layout::placeField(chorusModeBox, chorusLabel,
+        placeLegibleField(chorusModeBox, chorusLabel,
                                  C.getX() + (C.getWidth() - fieldW) / 2,
                                  C.getY() + (C.getHeight() - 52) / 2, fieldW);
     }
@@ -1495,7 +1521,7 @@ void Simple106AudioProcessorEditor::layoutFxPage()
         const auto C = fxPanelContent[1];
         auto ys = S116::layout::distribute(C.getHeight(), { 52, 80, 34 }, 4);
         const int fieldW = juce::jmin(220, C.getWidth());
-        S116::layout::placeField(delaySyncBox, delaySyncLabel,
+        placeLegibleField(delaySyncBox, delaySyncLabel,
                                  C.getX() + (C.getWidth() - fieldW) / 2,
                                  C.getY() + ys[0], fieldW);
         const int cw = C.getWidth() / 4;
@@ -1572,12 +1598,12 @@ void Simple106AudioProcessorEditor::layoutFooter()
     chordDisplay.setBounds(x, y + 4, chordW, 26); x += chordW; gap(4);
     button(chordNextBtn, 32);   gap(10);
 
-    stepsLabel.setBounds(x, y + 9, 34, 16); x += 34; gap(4);
+    stepsLabel.setBounds(x, y + 8, 34, 16); x += 34; gap(4);
     button(stepsPrevBtn, 32); gap(4);
     stepsDisplay.setBounds(x, y + 4, stepsW, 26); x += stepsW; gap(4);
     button(stepsNextBtn, 32); gap(10);
 
-    pageLabel.setBounds(x, y + 9, 28, 16); x += 28; gap(4);
+    pageLabel.setBounds(x, y + 8, 28, 16); x += 28; gap(4);
     button(pagePrevBtn, 32); gap(4);
     pageDisplay.setBounds(x, y + 4, pageW, 26); x += pageW; gap(4);
     button(pageNextBtn, 32);
@@ -2143,6 +2169,215 @@ bool Simple106AudioProcessorEditor::auditReadoutStrings (bool verbose) const
     return ok;
 }
 
+namespace {
+    juce::Font auditFontForLabel (const juce::Label& l)
+    {
+        const auto& p = l.getProperties();
+        const bool noKern = (bool) p.getWithDefault ("s116NoKerning", false);
+        const double sizeOverride = (double) p.getWithDefault ("s116Size", 0.0);
+        auto sz = [&] (float base) { return sizeOverride > 0.0 ? (float) sizeOverride : base; };
+
+        if ((bool) p.getWithDefault ("readout", false))
+        {
+            bool big = (bool) p.getWithDefault ("big", false);
+            if (auto* parentSlider = dynamic_cast<juce::Slider*> (l.getParentComponent()))
+                big = big || (bool) parentSlider->getProperties().getWithDefault ("bigReadout", false);
+            return S116::skin().mono (big ? 16.0f : 12.0f);
+        }
+
+        const auto style = p.getWithDefault ("style", "").toString();
+        if (style == "caption")
+            return S116::skin().ui (sz ((float) (double) p.getWithDefault ("captionSize", 13.0)),
+                                    noKern ? 0.0f : 0.085f);
+        if (style == "field")
+            return S116::skin().ui (sz (12.0f), noKern ? 0.0f : 0.10f);
+        if (style == "accent")
+            return S116::skin().ui (sz ((float) (double) p.getWithDefault ("captionSize", 13.0)),
+                                    noKern ? 0.0f : 0.085f);
+        if (style == "sub")
+            return S116::skin().ui (sz (12.0f), noKern ? 0.0f : 0.15f);
+        return l.getFont();
+    }
+}
+
+bool Simple106AudioProcessorEditor::auditTextLegibility (bool verbose) const
+{
+    bool ok = true;
+    bool fitOk = true, contrastOk = true, variantOk = true;
+
+    const std::array<S116::ThemeId, 4> ids = {
+        S116::ThemeId::ClassicSilver, S116::ThemeId::JP8000Blue,
+        S116::ThemeId::SH101Red,      S116::ThemeId::GraphiteRed
+    };
+    const char* themeNames[] = { "CS", "JP", "SH", "G" };
+    const auto ledBase = kLedBaseColours[juce::jlimit (0, 6, currentThemeIdx)];
+
+    std::array<S116::Theme, 4> themes;
+    for (int i = 0; i < 4; ++i) {
+        themes[(size_t) i] = S116::Theme::make (ids[(size_t) i]);
+        themes[(size_t) i].applyLed (ledBase);
+    }
+
+    std::function<void(juce::Component&)> visit = [&](juce::Component& c) {
+        if (auto* l = dynamic_cast<juce::Label*> (&c); l != nullptr && l->isVisible())
+        {
+            const auto text = l->getText();
+            const auto& props = l->getProperties();
+            const auto style = props.getWithDefault ("style", "").toString();
+            auto* parentCombo = dynamic_cast<juce::ComboBox*> (l->getParentComponent());
+            auto* parentSlider = dynamic_cast<juce::Slider*> (l->getParentComponent());
+            const bool kitReadout = (bool) props.getWithDefault ("readout", false);
+            const bool readout = kitReadout || (parentSlider != nullptr);
+            const bool comboText = (parentCombo != nullptr);
+            const bool styled = ! readout && ! comboText && style.isNotEmpty();
+
+            auto name = l->getName();
+            if (name.isEmpty())
+                name = juce::String (comboText ? "combo:" : (readout ? "readout:" : "")) + text;
+
+            const auto font = styled ? auditFontForLabel (*l) : l->getFont();
+            juce::GlyphArrangement glyphs;
+            glyphs.addLineOfText (font, text, 0.0f, 0.0f);
+            const auto bbox = glyphs.getBoundingBox (0, glyphs.getNumGlyphs(), true);
+            const bool fits = bbox.getWidth() <= (float) l->getWidth() + 0.5f
+                           && bbox.getHeight() <= (float) l->getHeight() + 0.5f;
+            if (verbose)
+                std::cout << "  TEXT FIT " << name << " \"" << text << "\" font="
+                          << juce::String (font.getHeight(), 1) << "px text "
+                          << juce::String (bbox.getWidth(), 1) << "x" << juce::String (bbox.getHeight(), 1)
+                          << " <= " << l->getWidth() << "x" << l->getHeight()
+                          << " " << (fits ? "PASS" : "FAIL") << std::endl;
+            fitOk = fitOk && fits;
+
+            const bool autoC  = (bool) props.getWithDefault ("s116AutoContrast", false);
+            const bool onDark = (bool) props.getWithDefault ("s116OnDark", false);
+
+            bool header = false;
+            for (auto* parent = l->getParentComponent(); parent != nullptr; parent = parent->getParentComponent())
+                if (parent == &headerBar) header = true;
+
+            if (styled)
+            {
+                const bool noShadow = (bool) props.getWithDefault ("s116NoShadow", false);
+                const bool noKern   = (bool) props.getWithDefault ("s116NoKerning", false);
+                const bool integer  = (bool) props.getWithDefault ("s116IntegerText", false);
+                const double size   = (double) props.getWithDefault ("s116Size", 0.0);
+                const bool variant = noShadow && noKern && integer && autoC && size >= 13.0
+                                  && (!header || onDark);
+                if (verbose)
+                    std::cout << "  VARIANT " << name << " noShadow=" << (int) noShadow
+                              << " noKern=" << (int) noKern
+                              << " integer=" << (int) integer
+                              << " auto=" << (int) autoC
+                              << " size=" << juce::String (size, 1)
+                              << " onDark=" << (int) onDark
+                              << " " << (variant ? "PASS" : "FAIL") << std::endl;
+                variantOk = variantOk && variant;
+            }
+
+            std::cout << "  CONTRAST " << name << " ["
+                      << (comboText ? "combo" : (readout ? "readout" : (header ? "header" : "panel"))) << "]";
+            bool labelContrastOk = true;
+            for (int i = 0; i < 4; ++i)
+            {
+                const auto& t = themes[(size_t) i];
+                juce::Colour top, bottom, ink;
+                if (comboText) {
+                    top = t.selTop; bottom = t.selBottom; ink = t.selText;
+                } else if (kitReadout) {
+                    top = t.plateTop; bottom = t.plateBottom; ink = t.ledReadout;
+                } else if (readout) {
+                    top = t.panelTop; bottom = t.panelBottom; ink = t.caption;
+                } else {
+                    if (header) { top = t.hdrTop; bottom = t.hdrBottom; }
+                    else        { top = t.panelTop; bottom = t.panelBottom; }
+
+                    if (styled && autoC)
+                        ink = onDark ? S116::readableTextColour (top, true)
+                                     : S116::readableTextColour (top);
+                    else if (style == "caption") ink = t.caption;
+                    else if (style == "field")   ink = t.heading;
+                    else if (style == "accent")  ink = t.logoAccent;
+                    else                         ink = t.sub;
+                }
+
+                const float cr = juce::jmin (S116::contrastRatioOf (ink, top),
+                                             S116::contrastRatioOf (ink, bottom));
+                std::cout << " " << themeNames[i] << "=" << juce::String (cr, 2);
+                labelContrastOk = labelContrastOk && (cr >= 4.5f);
+            }
+            std::cout << " " << (labelContrastOk ? "PASS" : "FAIL") << std::endl;
+            contrastOk = contrastOk && labelContrastOk;
+        }
+
+        for (auto* child : c.getChildren())
+            visit (*child);
+    };
+
+    visit (*const_cast<Simple106AudioProcessorEditor*> (this));
+
+    if (verbose)
+        std::cout << "  TEXT LEGIBILITY fit=" << (fitOk ? "PASS" : "FAIL")
+                  << " variant=" << (variantOk ? "PASS" : "FAIL")
+                  << " contrast=" << (contrastOk ? "PASS" : "FAIL") << std::endl;
+
+    ok = fitOk && variantOk && contrastOk;
+    return ok;
+}
+
+bool Simple106AudioProcessorEditor::auditKeyboardTextContrast (bool verbose) const
+{
+    bool ok = true;
+    const std::array<S116::ThemeId, 4> ids = {
+        S116::ThemeId::ClassicSilver, S116::ThemeId::JP8000Blue,
+        S116::ThemeId::SH101Red,      S116::ThemeId::GraphiteRed
+    };
+    const char* themeNames[] = { "CS", "JP", "SH", "G" };
+    const auto ledBase = kLedBaseColours[juce::jlimit (0, 6, currentThemeIdx)];
+
+    struct Category { const char* name; int pointSize; };
+    const Category categories[] = {
+        { "OCTAVE", 11 }, { "OCT -/+", 12 }, { "WHITE KEY NAMES (15)", 12 }, { "BLACK KEY NAMES (10)", 11 }
+    };
+
+    std::array<S116::Theme, 4> themes;
+    for (int i = 0; i < 4; ++i) {
+        themes[(size_t) i] = S116::Theme::make (ids[(size_t) i]);
+        themes[(size_t) i].applyLed (ledBase);
+    }
+
+    for (const auto& cat : categories)
+    {
+        if (verbose)
+            std::cout << "  KEYBOARD TEXT " << cat.name << " " << cat.pointSize << "px";
+        bool categoryOk = true;
+        for (int i = 0; i < 4; ++i)
+        {
+            const auto& t = themes[(size_t) i];
+            juce::Colour top, bottom, ink;
+            if (juce::String (cat.name) == "OCTAVE") {
+                top = t.plateTop; bottom = t.plateBottom; ink = S116::readableTextColour (top);
+            } else if (juce::String (cat.name) == "OCT -/+") {
+                top = t.btnTop; bottom = t.btnBottom; ink = S116::readableTextColour (top);
+            } else if (juce::String (cat.name).startsWith ("WHITE")) {
+                top = juce::Colour (0xfff8f9fb); bottom = juce::Colour (0xffd4d9e2);
+                ink = S116::readableTextColour (top);
+            } else {
+                top = juce::Colour (0xff2c323c); bottom = juce::Colour (0xff181b21);
+                ink = S116::readableTextColour (top);
+            }
+            const float cr = juce::jmin (S116::contrastRatioOf (ink, top),
+                                         S116::contrastRatioOf (ink, bottom));
+            if (verbose) std::cout << " " << themeNames[i] << "=" << juce::String (cr, 2);
+            categoryOk = categoryOk && (cr >= 4.5f);
+        }
+        if (verbose) std::cout << " " << (categoryOk ? "PASS" : "FAIL") << std::endl;
+        ok = ok && categoryOk;
+    }
+
+    return ok;
+}
+
 void Simple106AudioProcessorEditor::runDebugAudit()
 {
     const std::array<std::pair<int, int>, 3> sizes = {
@@ -2211,6 +2446,8 @@ void Simple106AudioProcessorEditor::runDebugAudit()
             if (!voiceLabelsOk) ok = false;
         }
 
+        ok = auditTextLegibility (true) && ok;
+        ok = auditKeyboardTextContrast (true) && ok;
         ok = auditFocus (true) && ok;
         ok = auditAttachments (true) && ok;
         ok = auditVoiceMatrix (true) && ok;

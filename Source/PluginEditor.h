@@ -166,6 +166,8 @@ private:
     bool auditRepaintTargets (bool verbose) const;
     bool auditFooter (bool verbose) const;
     bool auditReadoutStrings (bool verbose) const;
+    bool auditTextLegibility (bool verbose) const;
+    bool auditKeyboardTextContrast (bool verbose) const;
 
     Simple106AudioProcessor& audioProcessor;
     SilverLookAndFeel silverLookAndFeel;
