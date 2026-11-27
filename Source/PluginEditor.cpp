@@ -42,6 +42,7 @@ namespace {
     constexpr int kSmallBody = 42;
     constexpr int kPanelTitleFont = 16;
 
+#if S106_DEBUG_AUDIT
     const char* const kBaselineParamIds[] = {
         "ampAttack", "ampDecay", "ampRelease", "ampSustain", "arpEnable", "arpMode",
         "chordEnable", "chordType", "chorusMode", "cycleMode", "dco1Fold", "dco1Level",
@@ -57,6 +58,7 @@ namespace {
         "vTune2", "vTune3", "vTune4", "vTune5", "vTune6", "voiceVarMode",
         "xmodAmount", "xmodMode"
     };
+#endif
 }
 
 namespace {
@@ -903,14 +905,13 @@ Simple106AudioProcessorEditor::Simple106AudioProcessorEditor(Simple106AudioProce
     setSize(kMinW, kMinH);
     startTimerHz(60);
 
-    if (std::getenv("S106_DEBUG_AUDIT") != nullptr)
-    {
-        juce::Component::SafePointer<Simple106AudioProcessorEditor> safe (this);
-        juce::Timer::callAfterDelay(250, [safe]() mutable {
-            if (safe != nullptr)
-                safe->runDebugAudit();
-        });
-    }
+#if S106_DEBUG_AUDIT
+    juce::Component::SafePointer<Simple106AudioProcessorEditor> safe (this);
+    juce::Timer::callAfterDelay(250, [safe]() mutable {
+        if (safe != nullptr)
+            safe->runDebugAudit();
+    });
+#endif
 }
 
 Simple106AudioProcessorEditor::~Simple106AudioProcessorEditor() {
@@ -1823,6 +1824,7 @@ bool Simple106AudioProcessorEditor::handleKeyStateChanged(bool) {
     return true;
 }
 
+#if S106_DEBUG_AUDIT
 // ==============================================================================
 // Debug audit
 // ==============================================================================
@@ -2689,3 +2691,4 @@ void Simple106AudioProcessorEditor::runDebugAudit()
     allOk = allOk && behaviourOk;
     std::cout << (allOk ? "C2 AUDIT PASS" : "C2 AUDIT FAIL") << std::endl;
 }
+#endif

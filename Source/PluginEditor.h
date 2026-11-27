@@ -162,6 +162,7 @@ private:
     void setIdleHeaderLcd();
     juce::Slider* sliderAt (juce::Component* component) const;
 
+#if S106_DEBUG_AUDIT
     void runDebugAudit();
     bool collectBounds (juce::Component& parent, const juce::String& name,
                         bool verbose, bool& ok) const;
@@ -174,6 +175,7 @@ private:
     bool auditTextLegibility (bool verbose) const;
     bool auditKeyboardTextContrast (bool verbose) const;
     bool auditSaveDialog (bool verbose) const;
+#endif
 
     Simple106AudioProcessor& audioProcessor;
     SilverLookAndFeel silverLookAndFeel;

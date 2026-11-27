@@ -4,6 +4,8 @@ project(Simple106 VERSION 1.0.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(S106_ENABLE_DEBUG_AUDIT "Build Simple106 with the layout/text/behaviour debug audit" OFF)
+
 # Enable Universal Binary support for macOS (Apple Silicon + Intel)
 if (APPLE)
     set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
@@ -75,6 +77,12 @@ target_compile_definitions(Simple106 PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_VST3_CAN_REPLACE_VST2=0
 )
+
+if(S106_ENABLE_DEBUG_AUDIT)
+    target_compile_definitions(Simple106 PRIVATE S106_DEBUG_AUDIT=1)
+else()
+    target_compile_definitions(Simple106 PRIVATE S106_DEBUG_AUDIT=0)
+endif()
 
 # 6. Link JUCE Modules
 target_link_libraries(Simple106 PRIVATE
