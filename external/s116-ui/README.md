@@ -1,4 +1,4 @@
-# S-116 UI Kit v1.5.1
+# S-116 UI Kit v1.5.2
 
 Reusable JUCE UI kit extracted from Simple116. Skeuomorphic hardware-rack look: dark matte chassis, machined knobs, ledge buttons with LED strips, dropdowns, LED readouts, LCD displays and vertical faders. Five chassis themes (Graphite, JP-8000 Blue, Classic Silver, SH-101 Red and the fixed Metaphysical Black), a user-selectable LED colour and an independent scope colour.
 
@@ -96,6 +96,7 @@ Wire three user settings to your plugin state: chassis theme (`skin().setTheme`)
 
 ## Changelog
 
+- 1.5.2: docs-only Simple106 porting lessons (fixed-size layout/window derivation, multi-instance themes, gesture-driven header LCD, variant E legibility, voice readouts, focus audit, debug-audit build flag). No code changes.
 - 1.5.1: opt-in type-legibility properties (`s116NoShadow`, `s116NoKerning`, `s116Size`, `s116AutoContrast`, `s116OnDark`, `s116IntegerText`) and `--type` preview across Classic Silver, Graphite and Metaphysical Black with variants A–E and contrast ratios. Default look is unchanged.
 - 1.5: opt-in compact arrow button (`s116Arrow`: 32×34 component / 26×26 face, no LED strip); documented 48 px minimum width for compact text buttons; preview now shows four arrows, four 48 px compact buttons and a two-line header LCD; tests clean up the skin cache on exit.
 - 1.4: Metaphysical Black theme (fixed, outside the legacy theme cycle); opt-in vertical kit fader; opt-in compact ledge button; compact `SectionPanel` padding with optional subtitle; `accent` label style; `placeBareKnob`; preview mode in the kit test.
@@ -107,4 +108,4 @@ Wire three user settings to your plugin state: chassis theme (`skin().setTheme`)
 
 ## Version
 
-1.5.1
+1.5.2
