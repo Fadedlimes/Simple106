@@ -244,29 +244,54 @@ SavePatchDialog::SavePatchDialog(std::function<void(const juce::String&)> onSave
     : saveCallback(onSave), cancelCallback(onCancel)
 {
     setAlwaysOnTop(true);
+    setName("SAVE DIALOG");
     setWantsKeyboardFocus(false);
     setMouseClickGrabsKeyboardFocus(false);
 
     patchNameEditor.setName("PATCH NAME");
     patchNameEditor.setWantsKeyboardFocus(true);
     patchNameEditor.setMouseClickGrabsKeyboardFocus(true);
-    patchNameEditor.setFont(juce::FontOptions(13.0f).withStyle("Bold"));
-    patchNameEditor.setColour(juce::TextEditor::backgroundColourId, juce::Colour(0xfff0f2f5));
-    patchNameEditor.setColour(juce::TextEditor::textColourId, juce::Colour(0xff14171a));
-    patchNameEditor.setColour(juce::TextEditor::outlineColourId, juce::Colour(0xff68707d));
     patchNameEditor.onReturnKey = [this]() { if (saveCallback) saveCallback(patchNameEditor.getText()); };
     patchNameEditor.onEscapeKey = [this]() { if (cancelCallback) cancelCallback(); };
     addAndMakeVisible(patchNameEditor);
 
+    confirmSaveBtn.setButtonText("SAVE");
     confirmSaveBtn.setWantsKeyboardFocus(false);
     confirmSaveBtn.setMouseClickGrabsKeyboardFocus(false);
+    confirmSaveBtn.getProperties().set("s116Compact", true);
     confirmSaveBtn.onClick = [this]() { if (saveCallback) saveCallback(patchNameEditor.getText()); };
     addAndMakeVisible(confirmSaveBtn);
 
+    cancelSaveBtn.setButtonText("CANCEL");
     cancelSaveBtn.setWantsKeyboardFocus(false);
     cancelSaveBtn.setMouseClickGrabsKeyboardFocus(false);
+    cancelSaveBtn.getProperties().set("s116Compact", true);
     cancelSaveBtn.onClick = [this]() { if (cancelCallback) cancelCallback(); };
     addAndMakeVisible(cancelSaveBtn);
+
+    refreshTheme();
+}
+
+void SavePatchDialog::refreshTheme()
+{
+    const auto& t = S116::skin().theme();
+    patchNameEditor.setFont(S116::skin().mono(13.0f));
+    patchNameEditor.setColour(juce::TextEditor::backgroundColourId, t.lcdTop);
+    patchNameEditor.setColour(juce::TextEditor::textColourId, t.ledText);
+    patchNameEditor.setColour(juce::TextEditor::highlightColourId, t.ledOn);
+    patchNameEditor.setColour(juce::TextEditor::highlightedTextColourId, t.lcdBottom);
+    patchNameEditor.setColour(juce::TextEditor::outlineColourId, t.heading);
+    patchNameEditor.setColour(juce::TextEditor::focusedOutlineColourId, t.heading);
+    patchNameEditor.setColour(juce::TextEditor::shadowColourId, juce::Colours::black.withAlpha(0.35f));
+    patchNameEditor.setColour(juce::CaretComponent::caretColourId, t.ledOn);
+    repaint();
+}
+
+juce::Rectangle<int> SavePatchDialog::getDialogBounds() const
+{
+    return juce::Rectangle<int> ((getWidth() - kDialogW) / 2,
+                                 (getHeight() - kDialogH) / 2,
+                                 kDialogW, kDialogH);
 }
 
 void SavePatchDialog::open() {
@@ -280,41 +305,50 @@ void SavePatchDialog::mouseDown(const juce::MouseEvent&) {}
 void SavePatchDialog::paint(juce::Graphics& g) {
     g.fillAll(juce::Colour(0x95000000));
 
-    auto dialogBox = juce::Rectangle<float>(
-        static_cast<float>((getWidth() - 360) / 2),
-        static_cast<float>((getHeight() - 150) / 2),
-        360.0f, 150.0f
-    );
+    const auto& t = S116::skin().theme();
+    auto box = getDialogBounds();
+    auto body = box.toFloat();
 
-    g.setColour(juce::Colour(0xff23272e));
-    g.fillRoundedRectangle(dialogBox.expanded(3.0f), 8.0f);
-    g.setColour(juce::Colour(0xff4a5260));
-    g.drawRoundedRectangle(dialogBox.expanded(3.0f), 8.0f, 1.5f);
+    g.setColour(juce::Colours::black.withAlpha(0.55f));
+    g.fillRoundedRectangle(body.expanded(4.0f), 10.0f);
+    g.setColour(t.btnRing);
+    g.drawRoundedRectangle(body.expanded(1.0f), 8.0f, 1.5f);
 
-    juce::ColourGradient plateGrad(juce::Colour(0xffe4e7ec), dialogBox.getX(), dialogBox.getY(),
-                                   juce::Colour(0xffcbd0d8), dialogBox.getRight(), dialogBox.getBottom(), false);
-    g.setGradientFill(plateGrad);
-    g.fillRoundedRectangle(dialogBox, 6.0f);
+    g.setGradientFill(juce::ColourGradient::vertical(t.panelTop, body.getY(),
+                                                     t.panelBottom, body.getBottom()));
+    g.fillRoundedRectangle(body, 7.0f);
 
-    auto header = dialogBox.removeFromTop(32.0f);
-    g.setColour(juce::Colour(0xff1f242b));
+    auto header = body.removeFromTop(36.0f);
+    g.setGradientFill(juce::ColourGradient::vertical(t.hdrTop, header.getY(),
+                                                     t.hdrBottom, header.getBottom()));
     g.fillRect(header);
 
-    g.setColour(juce::Colour(0xffe74c3c));
+    g.setColour(t.ledOn);
     g.fillRect(header.getX(), header.getBottom(), header.getWidth(), 2.5f);
 
-    g.setColour(juce::Colours::white);
-    g.setFont(juce::FontOptions(13.0f).withStyle("Bold"));
-    g.drawText("SAVE CUSTOM PATCH", header, juce::Justification::centred, false);
+    g.setColour(t.rule);
+    g.fillRect(header.getX() + 14.0f, header.getBottom() + 7.0f, header.getWidth() - 28.0f, 1.0f);
+    g.setColour(t.ruleDark);
+    g.fillRect(header.getX() + 14.0f, header.getBottom() + 8.0f, header.getWidth() - 28.0f, 1.0f);
+
+    g.setColour(t.logo);
+    g.setFont(S116::skin().ui(16.0f, 0.10f));
+    g.drawText("SAVE CUSTOM PATCH", header.reduced(14.0f, 0.0f),
+               juce::Justification::centredLeft, false);
+
+    g.setColour(t.heading);
+    g.setFont(S116::skin().ui(12.0f, 0.10f));
+    g.drawText("PATCH NAME",
+               juce::Rectangle<int>(box.getX() + 24, box.getY() + 48,
+                                    box.getWidth() - 48, 16),
+               juce::Justification::centredLeft, false);
 }
 
 void SavePatchDialog::resized() {
-    int boxX = (getWidth() - 360) / 2;
-    int boxY = (getHeight() - 150) / 2;
-
-    patchNameEditor.setBounds(boxX + 24, boxY + 48, 312, 30);
-    confirmSaveBtn.setBounds(boxX + 75, boxY + 96, 95, 30);
-    cancelSaveBtn.setBounds(boxX + 190, boxY + 96, 95, 30);
+    const auto box = getDialogBounds();
+    patchNameEditor.setBounds(box.getX() + 24, box.getY() + 66, box.getWidth() - 48, 32);
+    confirmSaveBtn.setBounds(box.getX() + 80, box.getY() + 118, 95, 34);
+    cancelSaveBtn.setBounds(box.getX() + 205, box.getY() + 118, 95, 34);
 }
 
 // ==============================================================================
@@ -962,6 +996,7 @@ void Simple106AudioProcessorEditor::refreshFooterTheme()
     const auto& t = S116::skin().theme();
     buttonKeyboard.setLEDTheme(t.ledOn, t.ledOn.withAlpha(0.38f), t.ledReadout, t.ledOff);
     buttonKeyboard.repaint();
+    saveDialog.refreshTheme();
 }
 
 void Simple106AudioProcessorEditor::changeListenerCallback(juce::ChangeBroadcaster*)
@@ -2378,6 +2413,88 @@ bool Simple106AudioProcessorEditor::auditKeyboardTextContrast (bool verbose) con
     return ok;
 }
 
+bool Simple106AudioProcessorEditor::auditSaveDialog (bool verbose) const
+{
+    bool ok = true;
+    const auto box = saveDialog.getDialogBounds();
+
+    const auto titleFont  = S116::skin().ui (16.0f, 0.10f);
+    const auto labelFont  = S116::skin().ui (12.0f, 0.10f);
+    const auto editorFont = S116::skin().mono (13.0f);
+    const auto buttonFont = S116::skin().ui (12.0f, 0.10f);
+
+    const std::array<S116::ThemeId, 4> ids = {
+        S116::ThemeId::ClassicSilver, S116::ThemeId::JP8000Blue,
+        S116::ThemeId::SH101Red,      S116::ThemeId::GraphiteRed
+    };
+    const char* themeNames[] = { "CS", "JP", "SH", "G" };
+    const char* ledNames[] = { "Red", "Cyan", "Green", "Amber", "Yellow", "Purple", "White" };
+
+    auto fits = [] (const juce::Font& font, const juce::String& text,
+                    juce::Rectangle<int> r) {
+        juce::GlyphArrangement glyphs;
+        glyphs.addLineOfText (font, text, 0.0f, 0.0f);
+        const auto bbox = glyphs.getBoundingBox (0, glyphs.getNumGlyphs(), true);
+        return bbox.getWidth() <= (float) r.getWidth() + 0.5f
+            && bbox.getHeight() <= (float) r.getHeight() + 0.5f;
+    };
+
+    const juce::Rectangle<int> titleBox (box.getX() + 14, box.getY(), box.getWidth() - 28, 36);
+    const juce::Rectangle<int> labelBox (box.getX() + 24, box.getY() + 48, box.getWidth() - 48, 16);
+    const juce::Rectangle<int> editorBox (box.getX() + 24, box.getY() + 66, box.getWidth() - 48, 32);
+    const juce::Rectangle<int> buttonBox (95, 34);
+
+    for (int ti = 0; ti < 4; ++ti)
+    {
+        for (int li = 0; li < 7; ++li)
+        {
+            auto t = S116::Theme::make (ids[(size_t) ti]);
+            t.applyLed (kLedBaseColours[li]);
+
+            const float titleCr = juce::jmin (S116::contrastRatioOf (t.logo, t.hdrTop),
+                                              S116::contrastRatioOf (t.logo, t.hdrBottom));
+            const float labelCr = juce::jmin (S116::contrastRatioOf (t.heading, t.panelTop),
+                                              S116::contrastRatioOf (t.heading, t.panelBottom));
+            const float textCr  = S116::contrastRatioOf (t.ledText, t.lcdTop);
+            const float caretCr = S116::contrastRatioOf (t.ledOn, t.lcdTop);
+            const float selBgCr = S116::contrastRatioOf (t.ledOn, t.lcdTop);
+            const float selTextCr = S116::contrastRatioOf (t.lcdBottom, t.ledOn);
+            const float outlineCr = juce::jmin (S116::contrastRatioOf (t.heading, t.panelTop),
+                                                S116::contrastRatioOf (t.heading, t.panelBottom));
+
+            const bool lightFace = t.btnTop.interpolatedWith (t.btnBottom, 0.5f)
+                                       .getPerceivedBrightness() > 0.55f;
+            const auto btnInk = lightFace ? juce::Colour (0xff14171a) : t.btnText;
+            const float btnCr = juce::jmin (S116::contrastRatioOf (btnInk, t.btnTop),
+                                            S116::contrastRatioOf (btnInk, t.btnBottom));
+
+            const float minCr = std::min ({ titleCr, labelCr, textCr, caretCr,
+                                            selBgCr, selTextCr, outlineCr, btnCr });
+            const bool textFits = fits (titleFont, "SAVE CUSTOM PATCH", titleBox)
+                               && fits (labelFont, "PATCH NAME", labelBox)
+                               && fits (editorFont, "My Patch", editorBox)
+                               && fits (buttonFont, "SAVE", buttonBox)
+                               && fits (buttonFont, "CANCEL", buttonBox);
+            const bool pass = minCr >= 4.5f && textFits;
+            if (verbose)
+                std::cout << "  SAVE DIALOG " << themeNames[ti] << " " << ledNames[li]
+                          << " title=" << juce::String (titleCr, 2)
+                          << " label=" << juce::String (labelCr, 2)
+                          << " text=" << juce::String (textCr, 2)
+                          << " caret=" << juce::String (caretCr, 2)
+                          << " selBg=" << juce::String (selBgCr, 2)
+                          << " selText=" << juce::String (selTextCr, 2)
+                          << " outline=" << juce::String (outlineCr, 2)
+                          << " btn=" << juce::String (btnCr, 2)
+                          << " fit=" << (textFits ? "PASS" : "FAIL")
+                          << " " << (pass ? "PASS" : "FAIL") << std::endl;
+            ok = ok && pass;
+        }
+    }
+
+    return ok;
+}
+
 void Simple106AudioProcessorEditor::runDebugAudit()
 {
     const std::array<std::pair<int, int>, 3> sizes = {
@@ -2446,6 +2563,7 @@ void Simple106AudioProcessorEditor::runDebugAudit()
             if (!voiceLabelsOk) ok = false;
         }
 
+        ok = auditSaveDialog (true) && ok;
         ok = auditTextLegibility (true) && ok;
         ok = auditKeyboardTextContrast (true) && ok;
         ok = auditFocus (true) && ok;

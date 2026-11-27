@@ -58,9 +58,14 @@ class SavePatchDialog : public juce::Component {
 public:
     SavePatchDialog(std::function<void(const juce::String&)> onSave, std::function<void()> onCancel);
     void open();
+    void refreshTheme();
+    juce::Rectangle<int> getDialogBounds() const;
     void paint(juce::Graphics&) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent&) override;
+
+    static constexpr int kDialogW = 380;
+    static constexpr int kDialogH = 180;
 
 private:
     juce::TextEditor patchNameEditor;
@@ -168,6 +173,7 @@ private:
     bool auditReadoutStrings (bool verbose) const;
     bool auditTextLegibility (bool verbose) const;
     bool auditKeyboardTextContrast (bool verbose) const;
+    bool auditSaveDialog (bool verbose) const;
 
     Simple106AudioProcessor& audioProcessor;
     SilverLookAndFeel silverLookAndFeel;
