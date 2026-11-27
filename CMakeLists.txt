@@ -19,6 +19,9 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(JUCE)
 
+# S-116 UI kit (vendored under external/s116-ui; fonts via BinaryData)
+add_subdirectory(external/s116-ui)
+
 # Determine Plugin Formats per OS
 set(PLUGIN_FORMATS VST3 Standalone)
 if (APPLE)
@@ -75,6 +78,7 @@ target_compile_definitions(Simple106 PUBLIC
 
 # 6. Link JUCE Modules
 target_link_libraries(Simple106 PRIVATE
+    s116_ui
     juce::juce_audio_utils
     juce::juce_audio_processors
     juce::juce_dsp
