@@ -603,14 +603,228 @@ public:
     }
 };
 
+// ==============================================================================
+// --type preview: text legibility variants on three theme surfaces.
+// ==============================================================================
+class TypePreviewComponent : public juce::Component
+{
+public:
+    TypePreviewComponent()
+    {
+        setWantsKeyboardFocus (false);
+        setMouseClickGrabsKeyboardFocus (false);
+        printReport();
+    }
+
+    void paint (juce::Graphics& g) override
+    {
+        g.fillAll (juce::Colour (0xff0b0c0e));
+
+        const ThemeId ids[] = { ThemeId::ClassicSilver, ThemeId::GraphiteRed, ThemeId::MetaphysicalBlack };
+        for (int ti = 0; ti < 3; ++ti)
+        {
+            auto t = Theme::make (ids[ti]);
+            t.applyLed (juce::Colour (0xffff2d55));
+
+            const int rowY = 16 + ti * 312;
+            auto row = juce::Rectangle<int> (16, rowY, 1568, 304);
+            g.setGradientFill (juce::ColourGradient::vertical (t.chassisTop, row.getY(),
+                                                               t.chassisBottom, row.getBottom()));
+            g.fillRoundedRectangle (row.toFloat(), 8.0f);
+            g.setColour (t.btnRing);
+            g.drawRoundedRectangle (row.toFloat(), 8.0f, 1.0f);
+
+            g.setColour (S116::readableTextColour (t.chassisTop));
+            g.setFont (S116::skin().ui (16.0f, 0.10f));
+            g.drawText (t.name, row.getX() + 12, row.getY() + 4, 300, 18,
+                        juce::Justification::centredLeft, false);
+
+            for (int vi = 0; vi < 5; ++vi)
+                drawCard (g, t, row.getX() + 20 + vi * 312, row.getY() + 26, 300, 268, vi);
+        }
+    }
+
+private:
+    struct Variant
+    {
+        const char* name;
+        bool shadow;
+        float capSize;
+        float fieldSize;
+        float capKern;
+        float fieldKern;
+        bool autoColour;
+    };
+
+    static const Variant& variant (int i)
+    {
+        static const Variant variants[] = {
+            { "A  CURRENT",        true,  13.0f, 12.0f, 0.085f, 0.10f, false },
+            { "B  NO SHADOW",      false, 13.0f, 12.0f, 0.085f, 0.10f, false },
+            { "C  B + 14 PX",      false, 14.0f, 14.0f, 0.085f, 0.10f, false },
+            { "D  C + NO KERN",    false, 14.0f, 14.0f, 0.0f,   0.0f,  false },
+            { "E  D + AUTO INK",   false, 14.0f, 14.0f, 0.0f,   0.0f,  true  }
+        };
+        return variants[(size_t) juce::jlimit (0, 4, i)];
+    }
+
+    static juce::Colour inkFor (juce::Colour base, juce::Colour surface, bool autoColour)
+    {
+        return autoColour ? S116::readableTextColour (surface) : base;
+    }
+
+    static float minContrast (juce::Colour ink, juce::Colour a, juce::Colour b)
+    {
+        return juce::jmin (S116::contrastRatioOf (ink, a), S116::contrastRatioOf (ink, b));
+    }
+
+    static void drawText (juce::Graphics& g, const juce::String& text, juce::Rectangle<int> r,
+                          juce::Colour base, juce::Colour surface, float size, float kern,
+                          bool shadow, bool autoColour, juce::Justification just)
+    {
+        const auto ink = inkFor (base, surface, autoColour);
+        g.setFont (S116::skin().ui (size, kern));
+        if (shadow) {
+            g.setColour (juce::Colours::black);
+            g.drawText (text, r.translated (0, -1), just, false);
+        }
+        g.setColour (ink);
+        g.drawText (text, r, just, false);
+    }
+
+    static void drawSwatch (juce::Graphics& g, juce::Rectangle<int> r,
+                            juce::Colour top, juce::Colour bottom, juce::Colour border)
+    {
+        g.setGradientFill (juce::ColourGradient::vertical (top, r.getY(), bottom, r.getBottom()));
+        g.fillRoundedRectangle (r.toFloat(), 3.0f);
+        g.setColour (border);
+        g.drawRoundedRectangle (r.toFloat(), 3.0f, 1.0f);
+    }
+
+    void drawCard (juce::Graphics& g, const Theme& t, int x, int y, int w, int h, int vi)
+    {
+        const auto& v = variant (vi);
+        auto panel = juce::Rectangle<int> (x, y, w, h);
+        g.setGradientFill (juce::ColourGradient::vertical (t.panelTop, panel.getY(),
+                                                           t.panelBottom, panel.getBottom()));
+        g.fillRoundedRectangle (panel.toFloat(), 6.0f);
+        g.setColour (t.btnRing);
+        g.drawRoundedRectangle (panel.toFloat(), 6.0f, 1.0f);
+
+        const auto titleInk = S116::readableTextColour (t.panelTop);
+        g.setColour (titleInk);
+        g.setFont (S116::skin().mono (10.0f));
+        g.drawText (v.name, x + 10, y + 6, w - 20, 14, juce::Justification::centredLeft, false);
+
+        const char* captions[] = { "MORPH", "PWM", "ENV MOD", "V1", "V2", "V3", "V4", "V5", "V6" };
+        for (int i = 0; i < 9; ++i)
+        {
+            auto r = juce::Rectangle<int> (x + 12, y + 26 + i * 17, 64, 17);
+            drawText (g, captions[i], r, t.caption, t.panelTop,
+                      v.capSize, v.capKern, v.shadow, v.autoColour,
+                      juce::Justification::centredLeft);
+        }
+
+        // 64 px cell check around ENV MOD
+        g.setColour (t.rule);
+        g.drawRect (x + 10, y + 24 + 2 * 17, 64, 19, 1);
+
+        auto fieldR = juce::Rectangle<int> (x + 12, y + 184, 280, 17);
+        drawText (g, "DELAY TIME / SYNC", fieldR, t.heading, t.panelTop,
+                  v.fieldSize, v.fieldKern, v.shadow, v.autoColour,
+                  juce::Justification::centredLeft);
+
+        // Keyboard samples: OCTAVE on the octave plate, OCT - on a button,
+        // C on a white key, C# on a black key. A/B keep the current sizes.
+        const float kbSizes[] = { 9.0f, 11.0f, 9.5f, 8.5f };
+        const int kbY = y + 208;
+        const int kbW = 66, kbH = 32, kbGap = 4;
+        struct Sample { const char* text; juce::Colour top, bottom, ink; float size; };
+        const Sample samples[] = {
+            { "OCTAVE", t.plateTop, t.plateBottom, t.heading,  v.capSize > 13.0f ? 14.0f : kbSizes[0] },
+            { "OCT -",  t.btnTop,   t.btnBottom,   t.btnText,  v.capSize > 13.0f ? 14.0f : kbSizes[1] },
+            { "C",      juce::Colour (0xfff8f9fb), juce::Colour (0xffd4d9e2), t.ruleDark, v.capSize > 13.0f ? 14.0f : kbSizes[2] },
+            { "C#",     juce::Colour (0xff2c323c), juce::Colour (0xff181b21), t.caption, v.capSize > 13.0f ? 14.0f : kbSizes[3] }
+        };
+        for (int i = 0; i < 4; ++i)
+        {
+            auto r = juce::Rectangle<int> (x + 12 + i * (kbW + kbGap), kbY, kbW, kbH);
+            drawSwatch (g, r, samples[i].top, samples[i].bottom, t.btnRing);
+            drawText (g, samples[i].text, r.reduced (2), samples[i].ink, samples[i].top,
+                      samples[i].size, v.capKern, false, v.autoColour,
+                      juce::Justification::centred);
+        }
+
+        const auto capInk = inkFor (t.caption, t.panelTop, v.autoColour);
+        const auto fldInk = inkFor (t.heading, t.panelTop, v.autoColour);
+        const auto octInk = inkFor (t.heading, t.plateTop, v.autoColour);
+        const auto btnInk = inkFor (t.btnText, t.btnTop, v.autoColour);
+        const auto whiteInk = inkFor (t.ruleDark, juce::Colour (0xfff8f9fb), v.autoColour);
+        const auto blackInk = inkFor (t.caption, juce::Colour (0xff2c323c), v.autoColour);
+
+        const auto capC = minContrast (capInk, t.panelTop, t.panelBottom);
+        const auto fldC = minContrast (fldInk, t.panelTop, t.panelBottom);
+        const auto octC = minContrast (octInk, t.plateTop, t.plateBottom);
+        const auto btnC = minContrast (btnInk, t.btnTop, t.btnBottom);
+        const auto whiteC = minContrast (whiteInk, juce::Colour (0xfff8f9fb), juce::Colour (0xffd4d9e2));
+        const auto blackC = minContrast (blackInk, juce::Colour (0xff2c323c), juce::Colour (0xff181b21));
+
+        g.setColour (titleInk);
+        g.setFont (S116::skin().mono (9.0f));
+        g.drawText ("cap " + juce::String (capC, 1) + "  fld " + juce::String (fldC, 1)
+                    + "  oct " + juce::String (octC, 1),
+                    x + 10, y + 244, w - 20, 12, juce::Justification::centredLeft, false);
+        g.drawText ("btn " + juce::String (btnC, 1) + "  C " + juce::String (whiteC, 1)
+                    + "  C# " + juce::String (blackC, 1),
+                    x + 10, y + 256, w - 20, 12, juce::Justification::centredLeft, false);
+    }
+
+    static float keywordWidth()
+    {
+        return S116::textWidth (S116::skin().ui (14.0f, 0.0f), "ENV MOD");
+    }
+
+    void printReport() const
+    {
+        std::cout << "TYPE ENV MOD @14/no kern: " << juce::String (keywordWidth(), 1)
+                  << " px <= 64 " << (keywordWidth() <= 64.0f ? "PASS" : "FAIL") << std::endl;
+
+        const ThemeId ids[] = { ThemeId::ClassicSilver, ThemeId::GraphiteRed, ThemeId::MetaphysicalBlack };
+        for (auto id : ids)
+        {
+            auto t = Theme::make (id);
+            t.applyLed (juce::Colour (0xffff2d55));
+            for (int vi = 0; vi < 5; ++vi)
+            {
+                const auto& v = variant (vi);
+                const auto capInk = inkFor (t.caption, t.panelTop, v.autoColour);
+                const auto fldInk = inkFor (t.heading, t.panelTop, v.autoColour);
+                const auto octInk = inkFor (t.heading, t.plateTop, v.autoColour);
+                const auto btnInk = inkFor (t.btnText, t.btnTop, v.autoColour);
+                const auto whiteInk = inkFor (t.ruleDark, juce::Colour (0xfff8f9fb), v.autoColour);
+                const auto blackInk = inkFor (t.caption, juce::Colour (0xff2c323c), v.autoColour);
+                std::cout << "TYPE " << t.name << " " << v.name
+                          << " cap=" << juce::String (minContrast (capInk, t.panelTop, t.panelBottom), 2)
+                          << " fld=" << juce::String (minContrast (fldInk, t.panelTop, t.panelBottom), 2)
+                          << " oct=" << juce::String (minContrast (octInk, t.plateTop, t.plateBottom), 2)
+                          << " btn=" << juce::String (minContrast (btnInk, t.btnTop, t.btnBottom), 2)
+                          << " C=" << juce::String (minContrast (whiteInk, juce::Colour (0xfff8f9fb), juce::Colour (0xffd4d9e2)), 2)
+                          << " C#=" << juce::String (minContrast (blackInk, juce::Colour (0xff2c323c), juce::Colour (0xff181b21)), 2)
+                          << std::endl;
+            }
+        }
+    }
+};
+
 int main (int argc, char** argv)
 {
-    bool preview = false, bank = false;
+    bool preview = false, bank = false, typePreview = false;
     for (int i = 1; i < argc; ++i)
     {
         const juce::String arg (argv[i]);
         if (arg == "--preview") preview = true;
         if (arg == "--bank")    bank = true;
+        if (arg == "--type")    typePreview = true;
     }
 
     juce::ScopedJuceInitialiser_GUI init;
@@ -627,6 +841,21 @@ int main (int argc, char** argv)
     laf.applyTheme();
 
     const bool compactWidthOk = auditCompactTextWidths (true);
+
+    if (typePreview)
+    {
+        TypePreviewComponent typeComp;
+        PreviewWindow window ("s116-ui v1.5.1 type preview");
+        window.setContentNonOwned (&typeComp, true);
+        window.setContentComponentSize (1600, 960);
+        window.setVisible (true);
+        window.toFront (true);
+        std::cout << "Type preview. Close the window to exit." << std::endl;
+        juce::MessageManager::getInstance()->runDispatchLoop();
+        window.setVisible (false);
+        S116::skin().clearResources();
+        return 0;
+    }
 
     DummyProcessor processor;
     juce::AudioProcessorValueTreeState apvts (processor, nullptr, "PARAMS", createParams());
@@ -679,7 +908,7 @@ int main (int argc, char** argv)
     comp.setLookAndFeel (&laf);
     comp.sendLookAndFeelChange();
 
-    PreviewWindow window ("s116-ui v1.5 preview");
+    PreviewWindow window ("s116-ui v1.5.1 preview");
     window.setContentNonOwned (&comp, true);
     window.setContentComponentSize (1280, 820);
     window.setVisible (true);

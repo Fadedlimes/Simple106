@@ -7,6 +7,7 @@
 //  1920 x 1500) and scales it to the window with Component::setTransform.
 // ============================================================================
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <cmath>
 
 namespace S116
 {
@@ -215,4 +216,39 @@ namespace S116
             return t;
         }
     };
+
+    // ---- text legibility helpers -------------------------------------------
+    inline float relativeLuminanceOf (juce::Colour c)
+    {
+        auto ch = [] (float v) {
+            v = juce::jlimit (0.0f, 1.0f, v);
+            return v <= 0.04045f ? v / 12.92f : std::pow ((v + 0.055f) / 1.055f, 2.4f);
+        };
+        return 0.2126f * ch (c.getFloatRed())
+             + 0.7152f * ch (c.getFloatGreen())
+             + 0.0722f * ch (c.getFloatBlue());
+    }
+
+    inline float contrastRatioOf (juce::Colour a, juce::Colour b)
+    {
+        const float la = relativeLuminanceOf (a);
+        const float lb = relativeLuminanceOf (b);
+        return (juce::jmax (la, lb) + 0.05f) / (juce::jmin (la, lb) + 0.05f);
+    }
+
+    inline bool isLightSurfaceColour (juce::Colour surface)
+    {
+        return relativeLuminanceOf (surface) > 0.5f;
+    }
+
+    /** Darkest readable ink for a light surface, lightest for a dark one. */
+    inline juce::Colour readableTextColour (juce::Colour surface)
+    {
+        return isLightSurfaceColour (surface) ? juce::Colour (0xff0b0c0e) : juce::Colours::white;
+    }
+
+    inline juce::Colour readableTextColour (juce::Colour surface, bool onDark)
+    {
+        return onDark ? juce::Colours::white : juce::Colour (0xff0b0c0e);
+    }
 }

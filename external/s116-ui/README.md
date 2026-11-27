@@ -1,4 +1,4 @@
-# S-116 UI Kit v1.5
+# S-116 UI Kit v1.5.1
 
 Reusable JUCE UI kit extracted from Simple116. Skeuomorphic hardware-rack look: dark matte chassis, machined knobs, ledge buttons with LED strips, dropdowns, LED readouts, LCD displays and vertical faders. Five chassis themes (Graphite, JP-8000 Blue, Classic Silver, SH-101 Red and the fixed Metaphysical Black), a user-selectable LED colour and an independent scope colour.
 
@@ -31,6 +31,12 @@ Read `docs/S116_DESIGN_SYSTEM.md` first (design tokens, component specs, and the
 | Slider | `readoutRight` (bool) | readout to right of knob |
 | Slider | `s116Fader` (bool) | opt-in vertical fader art (slot, matte cap, ticks, LED lane) |
 | Button | `s116Compact` (bool) | opt-in compact ledge button: 26 px face / 34 px component / 48 px minimum width |
+| Label | `s116NoShadow` (bool) | v1.5.1: draw one solid text colour with no 1 px black shadow |
+| Label | `s116NoKerning` (bool) | v1.5.1: zero extra kerning |
+| Label | `s116Size` (float) | v1.5.1: override caption/field/accent size (e.g. 14) |
+| Label | `s116AutoContrast` (bool) | v1.5.1: pick dark ink on light, white on dark |
+| Label | `s116OnDark` (bool) | v1.5.1: tell auto-contrast the local surface is dark |
+| Label | `s116IntegerText` (bool) | v1.5.1: use integer label bounds for whole-pixel placement |
 | Button | `s116Arrow` (bool or int) | opt-in compact arrow: 32×34 component / 26×26 face, chevron, no LED strip, minimum width 32. `true` reads the `<`/`>` button text; `-1` / `1` force left/right |
 | Label | `style` ("caption"/"field"/"sub"/"accent") | text style; accent uses `logoAccent` |
 | Label | `captionSize` (float) | caption font height override (Aux 16) |
@@ -54,7 +60,7 @@ cmake --build build-test -j
 ./build-test/s116_ui_test --preview
 ```
 
-`s116_ui_test --preview` opens the kit demo with **1280x820 content** (Metaphysical Black, pink LED base, compact panel, opt-in fader, compact REC/speed buttons, a four-button ON/OFF row for REC and 1x, a row of four 32×34 arrows beside four 48 px compact text buttons SAVE/INIT/CLR/REST, and a header sample with the two-line LCD). Without arguments it paints once, runs the bounds/width audit and exits with a non-zero code on failure.
+`s116_ui_test --type` opens the v1.5.1 text-legibility preview (three themes × five variants A–E, with contrast ratios and the 64 px ENV MOD check). `s116_ui_test --preview` opens the kit demo with **1280x820 content** (Metaphysical Black, pink LED base, compact panel, opt-in fader, compact REC/speed buttons, a four-button ON/OFF row for REC and 1x, a row of four 32×34 arrows beside four 48 px compact text buttons SAVE/INIT/CLR/REST, and a header sample with the two-line LCD). Without arguments it paints once, runs the bounds/width audit and exits with a non-zero code on failure.
 
 `s116_ui_test --bank` builds one real Bank panel and runs the debug bounds audit at the four Bank sizes produced by the 1280x730/1280x820 windows (**426x296, 426x316, 426x340, 426x362**). It then opens the 426x340 Bank panel in a window whose height can be resized from 296 to 362. The audit checks every child against its parent, every sibling pair for overlap, every `Label` text against its cell width, and that each 64 px trim knob centre equals its 68 px fader-cell centre. It also checks fader-tick contrast and LED on/off indicator contrast in all five themes (minimum 3:1).
 
@@ -90,6 +96,7 @@ Wire three user settings to your plugin state: chassis theme (`skin().setTheme`)
 
 ## Changelog
 
+- 1.5.1: opt-in type-legibility properties (`s116NoShadow`, `s116NoKerning`, `s116Size`, `s116AutoContrast`, `s116OnDark`, `s116IntegerText`) and `--type` preview across Classic Silver, Graphite and Metaphysical Black with variants A–E and contrast ratios. Default look is unchanged.
 - 1.5: opt-in compact arrow button (`s116Arrow`: 32×34 component / 26×26 face, no LED strip); documented 48 px minimum width for compact text buttons; preview now shows four arrows, four 48 px compact buttons and a two-line header LCD; tests clean up the skin cache on exit.
 - 1.4: Metaphysical Black theme (fixed, outside the legacy theme cycle); opt-in vertical kit fader; opt-in compact ledge button; compact `SectionPanel` padding with optional subtitle; `accent` label style; `placeBareKnob`; preview mode in the kit test.
 - 1.3: `SkinManager::setTextScale`; legibility appendix.
@@ -100,4 +107,4 @@ Wire three user settings to your plugin state: chassis theme (`skin().setTheme`)
 
 ## Version
 
-1.5
+1.5.1

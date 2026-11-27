@@ -483,32 +483,59 @@ public:
         {
             const auto txt = l.getText();
             const auto just = l.getJustificationType();
+
+            // v1.5.1 opt-in type variants. All defaults preserve the v1.5 look.
+            const bool noShadow     = (bool) props.getWithDefault ("s116NoShadow", false);
+            const bool noKern       = (bool) props.getWithDefault ("s116NoKerning", false);
+            const bool autoContrast = (bool) props.getWithDefault ("s116AutoContrast", false);
+            const bool integerText  = (bool) props.getWithDefault ("s116IntegerText", false);
+            const bool hasOnDark    = props.contains ("s116OnDark");
+            const bool onDark       = (bool) props.getWithDefault ("s116OnDark", false);
+            const double sizeOverride = (double) props.getWithDefault ("s116Size", 0.0);
+
+            const auto textRect = integerText ? l.getLocalBounds().toFloat() : r;
+
+            auto makeFont = [&] (float baseSize, float kern) {
+                return S116::skin().ui (sizeOverride > 0.0 ? (float) sizeOverride : baseSize,
+                                        noKern ? 0.0f : kern);
+            };
+            auto textColour = [&] (juce::Colour base, juce::Colour surface) {
+                if (! autoContrast) return base;
+                return hasOnDark ? S116::readableTextColour (surface, onDark)
+                                 : S116::readableTextColour (surface);
+            };
+            auto drawStyled = [&] (juce::Colour base, juce::Colour surface,
+                                   float baseSize, float kern) {
+                g.setFont (makeFont (baseSize, kern));
+                const auto col = textColour (base, surface);
+                if (! noShadow) {
+                    g.setColour (juce::Colours::black);
+                    g.drawText (txt, textRect.translated (0.0f, -1.0f), just, false);
+                }
+                g.setColour (col);
+                g.drawText (txt, textRect, just, false);
+            };
+
             if (style == "caption")
             {
                 const float size = (float) (double) props.getWithDefault ("captionSize", 13.0);
-                g.setFont (S116::skin().ui (size, 0.085f));
-                g.setColour (juce::Colours::black);   g.drawText (txt, r.translated (0, -1), just, false);
-                g.setColour (t.caption);              g.drawText (txt, r, just, false);
+                drawStyled (t.caption, t.panelTop, size, 0.085f);
             }
             else if (style == "field")
             {
-                g.setFont (S116::skin().ui (12.0f, 0.10f));
-                g.setColour (juce::Colours::black);   g.drawText (txt, r.translated (0, -1), just, false);
-                g.setColour (t.heading);              g.drawText (txt, r, just, false);
+                drawStyled (t.heading, t.panelTop, 12.0f, 0.10f);
             }
             else if (style == "accent")
             {
                 const float size = (float) (double) props.getWithDefault ("captionSize", 13.0);
-                g.setFont (S116::skin().ui (size, 0.085f));
-                g.setColour (juce::Colours::black);   g.drawText (txt, r.translated (0, -1), just, false);
-                g.setColour (t.logoAccent);           g.drawText (txt, r, just, false);
+                drawStyled (t.logoAccent, t.panelTop, size, 0.085f);
             }
             else if (style == "sub")
             {
                 g.setColour (t.rule);     g.fillRect (r.getX(), r.getBottom() - 2.0f, r.getWidth(), 1.0f);
                 g.setColour (t.ruleDark); g.fillRect (r.getX(), r.getBottom() - 1.0f, r.getWidth(), 1.0f);
-                g.setFont (S116::skin().ui (12.0f, 0.15f));
-                g.setColour (t.sub);
+                g.setFont (makeFont (12.0f, 0.15f));
+                g.setColour (textColour (t.sub, t.panelTop));
                 g.drawText (txt, r.withTrimmedBottom (3.0f), juce::Justification::centredLeft, false);
             }
             return;

@@ -1,4 +1,4 @@
-# S-116 Design System (JUCE) v1.5
+# S-116 Design System (JUCE) v1.5.1
 
 A skeuomorphic hardware-rack look for JUCE plugins: dark matte chassis, machined knobs, ledge buttons with LED strips, LCD dropdowns, red LED readouts. First used in the Simple116 synth. This document lets an LLM agent apply the same look to another plugin without rediscovering the details.
 
@@ -7,6 +7,8 @@ A skeuomorphic hardware-rack look for JUCE plugins: dark matte chassis, machined
 **Changes from v1.0 of this document:** corrected `sub` text colours (Graphite, SH-101); the button face is a flat colour (not a gradient); the dropdown shipped in Simple116 is the themed `LookAndFeel_V4` combo box (the LCD-plate version is opt-in); envelope and step displays are coloured from `ledReadout`; the BinaryData symbol names; the two ways to build a control (`placeKnob` vs `KnobCell`); the real `SkinManager` API; new Appendix C (synth layout kit) and Appendix D (known issues and kit patch).
 
 **Changes in v1.4:** added the fixed Metaphysical Black theme; opt-in vertical fader; opt-in compact ledge button (26 px face / 34 px component / 48 px minimum width); compact `SectionPanel` padding (24 / 4 / 4) with optional subtitle; `accent` label style; `placeBareKnob`. `ThemeId::numThemes` still counts the four legacy themes so existing theme cycles do not change; select Metaphysical Black explicitly with `skin().setTheme(ThemeId::MetaphysicalBlack)`.
+
+**Changes in v1.5.1:** opt-in label type properties (`s116NoShadow`, `s116NoKerning`, `s116Size`, `s116AutoContrast`, `s116OnDark`, `s116IntegerText`) and a `--type` preview that measures Classic Silver, Graphite and Metaphysical Black with variants A–E, contrast ratios, and ENV MOD in a 64 px cell. Defaults are unchanged.
 
 **Changes in v1.5:** added the opt-in compact arrow button (`s116Arrow`: 32×34 component / 26×26 face, chevron, no LED strip, minimum width 32) and documented the 48 px minimum width for compact text buttons. Preview now includes a row of four arrows beside four 48 px compact buttons and a header sample with the two-line LCD.
 
@@ -248,6 +250,12 @@ Five headers plus fonts. Put them in a shared folder and pull them into each plu
 | Slider | `readoutRight` (bool) | readout to the right of the knob (compact header use) |
 | Slider | `s116Fader` (bool) | opt-in vertical fader art |
 | Button | `s116Compact` (bool) | 26 px face / 34 px component / 48 px minimum width |
+| Label | `s116NoShadow` (bool) | no 1 px black shadow; one solid text colour |
+| Label | `s116NoKerning` (bool) | zero extra kerning |
+| Label | `s116Size` (float) | override caption/field/accent size |
+| Label | `s116AutoContrast` (bool) | dark on light surfaces, white on dark |
+| Label | `s116OnDark` (bool) | force auto-contrast to the light ink |
+| Label | `s116IntegerText` (bool) | integer label bounds for whole-pixel placement |
 | Button | `s116Arrow` (bool/int) | compact arrow: 26 px face / 34 px component / 32 px minimum width, chevron, no LED strip |
 | Label | `style` ("caption" / "field" / "sub" / "accent") | text style; accent = `logoAccent` |
 | Label | `captionSize` (float) | caption font height override (Aux = 16) |

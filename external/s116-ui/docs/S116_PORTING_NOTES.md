@@ -39,6 +39,7 @@ At 1280, Banks use 68 px cells / 2 px gaps; Filters 54 / 2; Effects 55 / 2 (8 x 
 
 - `slider.getProperties().set("s116Fader", true)` enables the vertical kit fader (slot, matte cap, ticks, LED lane). Leave it off for existing linear sliders.
 - `button.getProperties().set("s116Compact", true)` enables the 26 px face / 34 px component compact ledge button, minimum 48 px wide.
+- v1.5.1 opt-in label type properties: `s116NoShadow`, `s116NoKerning`, `s116Size`, `s116AutoContrast`, `s116OnDark`, `s116IntegerText`. The `--type` preview prints contrast ratios and checks ENV MOD (14 px, no kerning) in 64 px.
 - `button.getProperties().set("s116Arrow", true)` enables the 26 px face / 34 px component compact arrow: use a 32 x 34 component (minimum width 32), no LED strip. Compact text buttons SAVE / INIT / CLR / REST are 48 px minimum wide; their 12 px Barlow labels measure 18.7-25.4 px.
 - `placeBareKnob(slider, cellX, cellY, cellW, body)` positions a no-text-box knob centred in the cell; pass the fader-cell width to keep rows aligned.
 
