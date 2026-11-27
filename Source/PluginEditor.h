@@ -22,24 +22,16 @@
 #include <memory>
 #include <vector>
 
-struct LEDTheme {
-    juce::String name;
-    juce::Colour primary;
-    juce::Colour glow;
-    juce::Colour highlight;
-    juce::Colour unlit;
-    juce::Colour unlitBg;
-};
-
-// Footer readout: keeps the original 7-segment drawing and palette for C1.
-// The kit LCD plate / token restyle is C2.
-class SegmentReadout : public juce::Component {
+// Footer readout: kit LCD plate with the original 7-segment drawing.
+class SegmentReadout : public S116::LcdPlate {
 public:
     SegmentReadout(float charWidth, int insetX);
     void setText(const juce::String& newText);
-    void setPalette(const LEDTheme& newPalette);
     juce::String getText() const { return text; }
-    void paint(juce::Graphics& g) override;
+    int requiredWidthFor(const juce::String& s) const;
+
+protected:
+    void paintDynamic(juce::Graphics& g) override;
 
 private:
     void drawString(juce::Graphics& g, float x, float y, float w, float h, const juce::String& text);
@@ -48,7 +40,6 @@ private:
     juce::String text;
     float charW;
     int inset;
-    LEDTheme palette;
 };
 
 // Voice panel: panel skin + the six live voice LEDs, driven by isVoiceActive().
@@ -111,10 +102,6 @@ public:
     bool keyStateChanged (bool isKeyDown) override;
     bool keyStateChanged (bool isKeyDown, juce::Component* originatingComponent) override;
 
-    const LEDTheme& getActiveTheme() const {
-        return ledThemes[juce::jlimit (0, 6, currentThemeIdx)];
-    }
-
 private:
     struct LabeledSlider {
         juce::Slider slider;
@@ -145,7 +132,7 @@ private:
     void applyThisEditorsSkin();
     bool syncThemeParamsFromParameters();
     S116::ThemeId mapChassisTheme (int index) const;
-    void refreshKeyboardLedTheme();
+    void refreshFooterTheme();
     void changeListenerCallback (juce::ChangeBroadcaster*) override;
 
     void showSaveDialog();
@@ -177,6 +164,8 @@ private:
     bool auditAttachments (bool verbose) const;
     bool auditVoiceMatrix (bool verbose);
     bool auditRepaintTargets (bool verbose) const;
+    bool auditFooter (bool verbose) const;
+    bool auditReadoutStrings (bool verbose) const;
 
     Simple106AudioProcessor& audioProcessor;
     SilverLookAndFeel silverLookAndFeel;
@@ -320,8 +309,6 @@ private:
 
     std::array<bool, NUM_QWERTY_KEYS> qwertyDownState { false };
     std::array<int, NUM_QWERTY_KEYS> qwertyActiveNote { 0 };
-
-    static const LEDTheme ledThemes[7];
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Simple106AudioProcessorEditor)
 };

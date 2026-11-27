@@ -59,23 +59,24 @@ namespace {
     };
 }
 
-// 7 LED theme palettes. C1 keeps these for the legacy footer drawing;
-// C2 replaces the footer colours with kit LED tokens.
-const LEDTheme Simple106AudioProcessorEditor::ledThemes[7] = {
-    { "Vintage Red",   juce::Colour(0xffff2d55), juce::Colour(0x60ff2d55), juce::Colour(0xffffa2b0), juce::Colour(0xff420e14), juce::Colour(0x1830080d) },
-    { "Neon Cyan",     juce::Colour(0xff00d2d3), juce::Colour(0x6000d2d3), juce::Colour(0xffa8fffc), juce::Colour(0xff042629), juce::Colour(0x18002b2c) },
-    { "Acid Green",    juce::Colour(0xff2ecc71), juce::Colour(0x602ecc71), juce::Colour(0xffa3f7c4), juce::Colour(0xff0c381a), juce::Colour(0x180c381a) },
-    { "Amber Gold",    juce::Colour(0xffff9f43), juce::Colour(0x60ff9f43), juce::Colour(0xffffe0b2), juce::Colour(0xff4a2a0a), juce::Colour(0x184a2a0a) },
-    { "Solar Yellow",  juce::Colour(0xfffeca57), juce::Colour(0x60feca57), juce::Colour(0xfffff4cc), juce::Colour(0xff44340a), juce::Colour(0x1844340a) },
-    { "Ultraviolet",   juce::Colour(0xff9b59b6), juce::Colour(0x609b59b6), juce::Colour(0xffe4b5f7), juce::Colour(0xff281133), juce::Colour(0x18281133) },
-    { "Ghost White",   juce::Colour(0xffffffff), juce::Colour(0x60ffffff), juce::Colour(0xffffffff), juce::Colour(0xff2a2e36), juce::Colour(0x182a2e36) }
-};
+namespace {
+    // The seven ledTheme indices, in their existing order.
+    const juce::Colour kLedBaseColours[7] = {
+        juce::Colour(0xffff2d55), juce::Colour(0xff00d2d3), juce::Colour(0xff2ecc71),
+        juce::Colour(0xffff9f43), juce::Colour(0xfffeca57), juce::Colour(0xff9b59b6),
+        juce::Colour(0xffffffff)
+    };
+
+    const char* const kArpNames[]   = { "UP", "DOWN", "U-D", "RAND", "PLAY" };
+    const char* const kChordNames[] = { "MAJ", "MIN", "MAJ7", "MIN7", "DOM7", "SUS4", "DIM", "OCT", "5TH" };
+    const char* const kStepNames[]  = { "16", "32", "48", "64" };
+}
 
 // ==============================================================================
 // Footer segment readout
 // ==============================================================================
 SegmentReadout::SegmentReadout(float charWidth, int insetX)
-    : charW(charWidth), inset(insetX)
+    : LcdPlate(), charW(charWidth), inset(insetX)
 {
     setWantsKeyboardFocus(false);
     setMouseClickGrabsKeyboardFocus(false);
@@ -89,19 +90,14 @@ void SegmentReadout::setText(const juce::String& newText)
     repaint();
 }
 
-void SegmentReadout::setPalette(const LEDTheme& newPalette)
+int SegmentReadout::requiredWidthFor(const juce::String& s) const
 {
-    palette = newPalette;
-    repaint();
+    const int n = s.length();
+    return 2 * inset + (int) std::ceil((float) n * charW) + (n > 1 ? (n - 1) * 2 : 0);
 }
 
-void SegmentReadout::paint(juce::Graphics& g)
+void SegmentReadout::paintDynamic(juce::Graphics& g)
 {
-    auto bounds = getLocalBounds().toFloat();
-    g.setColour(juce::Colour(0xff090b0e));
-    g.fillRoundedRectangle(bounds, 3.0f);
-    g.setColour(juce::Colour(0xff4a5260));
-    g.drawRoundedRectangle(bounds, 3.0f, 1.2f);
     drawString(g, static_cast<float>(inset), 3.0f, charW, 18.0f, text);
 }
 
@@ -157,17 +153,18 @@ void SegmentReadout::drawChar(juce::Graphics& g, float x, float y, float w, floa
 
     const float t = 1.8f;
     const float midY = y + h * 0.5f;
+    const auto& theme = S116::skin().theme();
 
     auto drawSeg = [&](int idx, juce::Rectangle<float> rect) {
         if (s[idx]) {
-            g.setColour(palette.glow);
+            g.setColour(theme.ledOn.withAlpha(0.30f));
             g.fillRoundedRectangle(rect.expanded(1.2f), 1.0f);
-            g.setColour(palette.primary);
+            g.setColour(theme.ledOn);
             g.fillRoundedRectangle(rect, 1.0f);
-            g.setColour(palette.highlight);
+            g.setColour(theme.ledReadout);
             g.fillRoundedRectangle(rect.reduced(0.4f), 0.5f);
         } else {
-            g.setColour(palette.unlitBg);
+            g.setColour(theme.ledOff);
             g.fillRoundedRectangle(rect, 0.5f);
         }
     };
@@ -330,7 +327,7 @@ Simple106AudioProcessorEditor::Simple106AudioProcessorEditor(Simple106AudioProce
     currentChassisThemeIdx = juce::jlimit(0, NUM_CHASSIS_THEMES - 1,
                                           static_cast<int>(getSafeParamValue("guiTheme", 0.0f)));
 
-    S116::skin().setLedColour(ledThemes[currentThemeIdx].primary);
+    S116::skin().setLedColour(kLedBaseColours[juce::jlimit(0, 6, currentThemeIdx)]);
     S116::skin().setTheme(mapChassisTheme(currentChassisThemeIdx));
     silverLookAndFeel.applyTheme();
 
@@ -348,6 +345,7 @@ Simple106AudioProcessorEditor::Simple106AudioProcessorEditor(Simple106AudioProce
 
     auto prepLabel = [](juce::Label& l, const juce::String& text, bool field) {
         l.setText(text, juce::dontSendNotification);
+        l.setName(text);
         if (field) S116::layout::styleField(l);
         else       S116::layout::styleCaption(l);
         l.setWantsKeyboardFocus(false);
@@ -813,6 +811,7 @@ Simple106AudioProcessorEditor::Simple106AudioProcessorEditor(Simple106AudioProce
     footerPanel.addAndMakeVisible(stepsDisplay);
     footerPanel.addAndMakeVisible(pageDisplay);
 
+    buttonKeyboard.setName("KEYBOARD");
     buttonKeyboard.setWantsKeyboardFocus(false);
     buttonKeyboard.setMouseClickGrabsKeyboardFocus(false);
     footerPanel.addAndMakeVisible(buttonKeyboard);
@@ -837,7 +836,7 @@ Simple106AudioProcessorEditor::Simple106AudioProcessorEditor(Simple106AudioProce
             clearFocus(*child);
 
     S116::skin().addChangeListener(this);
-    refreshKeyboardLedTheme();
+    refreshFooterTheme();
     updateSegmentDisplays();
     setIdleHeaderLcd();
 
@@ -885,7 +884,7 @@ S116::ThemeId Simple106AudioProcessorEditor::mapChassisTheme(int index) const {
 void Simple106AudioProcessorEditor::applyThisEditorsSkin()
 {
     const auto wantedTheme = mapChassisTheme(currentChassisThemeIdx);
-    const auto wantedLed = getActiveTheme().primary;
+    const auto wantedLed = kLedBaseColours[juce::jlimit(0, 6, currentThemeIdx)];
 
     const bool themeChanged = S116::skin().themeId() != wantedTheme;
     const bool ledChanged = S116::skin().getLedBaseColour() != wantedLed;
@@ -897,7 +896,7 @@ void Simple106AudioProcessorEditor::applyThisEditorsSkin()
     {
         silverLookAndFeel.applyTheme();
         sendLookAndFeelChange();
-        refreshKeyboardLedTheme();
+        refreshFooterTheme();
         repaint();
     }
 }
@@ -934,29 +933,16 @@ void Simple106AudioProcessorEditor::applyLedTheme() {
     applyThisEditorsSkin();
 }
 
-void Simple106AudioProcessorEditor::refreshKeyboardLedTheme()
+void Simple106AudioProcessorEditor::refreshFooterTheme()
 {
-    auto base = S116::skin().getLedBaseColour();
-    int paletteIdx = juce::jlimit(0, 6, currentThemeIdx);
-
-    for (int i = 0; i < 7; ++i) {
-        if (ledThemes[i].primary == base) {
-            paletteIdx = i;
-            break;
-        }
-    }
-
-    const auto& t = ledThemes[(size_t) paletteIdx];
-    buttonKeyboard.setLEDTheme(t.primary, t.glow, t.highlight, t.unlit);
-    arpDisplay.setPalette(t);
-    chordDisplay.setPalette(t);
-    stepsDisplay.setPalette(t);
-    pageDisplay.setPalette(t);
+    const auto& t = S116::skin().theme();
+    buttonKeyboard.setLEDTheme(t.ledOn, t.ledOn.withAlpha(0.38f), t.ledReadout, t.ledOff);
+    buttonKeyboard.repaint();
 }
 
 void Simple106AudioProcessorEditor::changeListenerCallback(juce::ChangeBroadcaster*)
 {
-    refreshKeyboardLedTheme();
+    refreshFooterTheme();
 }
 
 void Simple106AudioProcessorEditor::updateUIFromParameters() {
@@ -1033,15 +1019,9 @@ void Simple106AudioProcessorEditor::refreshPresetList() {
 
 void Simple106AudioProcessorEditor::updateSegmentDisplays()
 {
-    const char* arpNames[] = { "UP", "DOWN", "U-D", "RAND", "PLAY" };
-    arpDisplay.setText(arpNames[juce::jlimit(0, 4, currentArpIdx)]);
-
-    const char* chordNames[] = { "MAJ", "MIN", "MAJ7", "MIN7", "DOM7", "SUS4", "DIM", "OCT", "5TH" };
-    chordDisplay.setText(chordNames[juce::jlimit(0, 8, currentChordIdx)]);
-
-    const char* stepNames[] = { "16", "32", "48", "64" };
-    stepsDisplay.setText(stepNames[juce::jlimit(0, 3, currentPagesIdx)]);
-
+    arpDisplay.setText(kArpNames[juce::jlimit(0, 4, currentArpIdx)]);
+    chordDisplay.setText(kChordNames[juce::jlimit(0, 8, currentChordIdx)]);
+    stepsDisplay.setText(kStepNames[juce::jlimit(0, 3, currentPagesIdx)]);
     pageDisplay.setText("PG-" + juce::String(currentSeqPage + 1));
 }
 
@@ -1405,12 +1385,14 @@ void Simple106AudioProcessorEditor::layoutSynthPage()
     // LFO 1
     {
         const auto C = synthPanelContent[4];
-        auto ys = S116::layout::distribute(C.getHeight(), { 52, 80 }, 4);
+        // Keep the SHAPE row and knob row on the same baselines as LFO 2/3;
+        // LFO 1 has no TARGET combo, so that row is intentionally empty.
+        auto ys = S116::layout::distribute(C.getHeight(), { 52, 52, 80 }, 4);
         S116::layout::placeField(lfo1ShapeBox, lfo1ShapeLabel, C.getX(),
                                  C.getY() + ys[0], juce::jmin(C.getWidth(), 110));
         const int cw = C.getWidth() / 3;
         auto cell = [&](int col) {
-            return juce::Rectangle<int>(C.getX() + col * cw, C.getY() + ys[1], cw, 80);
+            return juce::Rectangle<int>(C.getX() + col * cw, C.getY() + ys[2], cw, 80);
         };
         placeBare(lfo1Rate.slider,    lfo1Rate.label,    cell(0), "LFO1 RATE");
         placeBare(lfo1ToFilt.slider,  lfo1ToFilt.label,  cell(1), "LFO1 VCF MOD");
@@ -1557,6 +1539,24 @@ void Simple106AudioProcessorEditor::layoutFooter()
     };
     auto gap = [&](int g) { x += g; };
 
+    auto widestReadout = [](const SegmentReadout& readout, const char* const* names, int count) {
+        int w = 0;
+        for (int i = 0; i < count; ++i)
+            w = juce::jmax(w, readout.requiredWidthFor(names[i]));
+        return w + 2; // 1 px breathing room inside the plate on each side
+    };
+
+    const int arpW = widestReadout(arpDisplay, kArpNames,
+                                   (int) (sizeof(kArpNames) / sizeof(kArpNames[0])));
+    const int chordW = widestReadout(chordDisplay, kChordNames,
+                                     (int) (sizeof(kChordNames) / sizeof(kChordNames[0])));
+    const int stepsW = widestReadout(stepsDisplay, kStepNames,
+                                     (int) (sizeof(kStepNames) / sizeof(kStepNames[0])));
+    const int pageW = juce::jmax(pageDisplay.requiredWidthFor("PG-1"),
+                                 pageDisplay.requiredWidthFor("PG-2"),
+                                 pageDisplay.requiredWidthFor("PG-3"),
+                                 pageDisplay.requiredWidthFor("PG-4")) + 2;
+
     button(seqPlayBtn, 52);  gap(6);
     button(seqRecBtn, 52);   gap(6);
     button(seqRestBtn, 52);  gap(6);
@@ -1564,22 +1564,22 @@ void Simple106AudioProcessorEditor::layoutFooter()
 
     button(arpToggleBtn, 52); gap(4);
     button(arpPrevBtn, 32);   gap(4);
-    arpDisplay.setBounds(x, y + 4, 58, 26); x += 58; gap(4);
+    arpDisplay.setBounds(x, y + 4, arpW, 26); x += arpW; gap(4);
     button(arpNextBtn, 32);   gap(10);
 
     button(chordToggleBtn, 64); gap(4);
     button(chordPrevBtn, 32);   gap(4);
-    chordDisplay.setBounds(x, y + 4, 68, 26); x += 68; gap(4);
+    chordDisplay.setBounds(x, y + 4, chordW, 26); x += chordW; gap(4);
     button(chordNextBtn, 32);   gap(10);
 
     stepsLabel.setBounds(x, y + 9, 34, 16); x += 34; gap(4);
     button(stepsPrevBtn, 32); gap(4);
-    stepsDisplay.setBounds(x, y + 4, 36, 26); x += 36; gap(4);
+    stepsDisplay.setBounds(x, y + 4, stepsW, 26); x += stepsW; gap(4);
     button(stepsNextBtn, 32); gap(10);
 
     pageLabel.setBounds(x, y + 9, 28, 16); x += 28; gap(4);
     button(pagePrevBtn, 32); gap(4);
-    pageDisplay.setBounds(x, y + 4, 54, 26); x += 54; gap(4);
+    pageDisplay.setBounds(x, y + 4, pageW, 26); x += pageW; gap(4);
     button(pageNextBtn, 32);
 
     buttonKeyboard.setBounds(C.getX(), C.getY() + 40, C.getWidth(), 114);
@@ -2093,6 +2093,56 @@ bool Simple106AudioProcessorEditor::auditRepaintTargets (bool verbose) const
     return ok;
 }
 
+bool Simple106AudioProcessorEditor::auditFooter (bool verbose) const
+{
+    bool ok = true;
+    const auto footerBounds = footerPanel.getLocalBounds();
+
+    for (auto* c : footerPanel.getChildren())
+    {
+        const bool inside = footerBounds.contains (c->getBounds());
+        if (verbose) {
+            auto name = c->getName();
+            if (name.isEmpty())
+                if (auto* b = dynamic_cast<juce::Button*> (c))
+                    name = b->getButtonText();
+            if (name.isEmpty())
+                name = "unnamed";
+            std::cout << "  FOOTER " << name << " " << c->getBounds().toString()
+                      << " inside " << footerBounds.toString()
+                      << " " << (inside ? "PASS" : "FAIL") << std::endl;
+        }
+        if (!inside) ok = false;
+    }
+
+    return ok;
+}
+
+bool Simple106AudioProcessorEditor::auditReadoutStrings (bool verbose) const
+{
+    bool ok = true;
+    auto check = [&](const SegmentReadout& readout, const char* label, const juce::String& value) {
+        const int required = readout.requiredWidthFor (value);
+        const bool pass = required <= readout.getWidth();
+        if (verbose)
+            std::cout << "  READOUT " << label << " \"" << value << "\": "
+                      << required << " <= " << readout.getWidth()
+                      << " " << (pass ? "PASS" : "FAIL") << std::endl;
+        if (!pass) ok = false;
+    };
+
+    for (const auto* s : kArpNames)
+        check (arpDisplay, "ARP", s);
+    for (const auto* s : kChordNames)
+        check (chordDisplay, "CHORD", s);
+    for (const auto* s : kStepNames)
+        check (stepsDisplay, "STEPS", s);
+    for (int i = 1; i <= 4; ++i)
+        check (pageDisplay, "PAGE", "PG-" + juce::String (i));
+
+    return ok;
+}
+
 void Simple106AudioProcessorEditor::runDebugAudit()
 {
     const std::array<std::pair<int, int>, 3> sizes = {
@@ -2110,7 +2160,7 @@ void Simple106AudioProcessorEditor::runDebugAudit()
         setSize (size.first, size.second);
         resized();
 
-        std::cout << "\n=== C1 AUDIT " << size.first << "x" << size.second << " ===" << std::endl;
+        std::cout << "\n=== C2 AUDIT " << size.first << "x" << size.second << " ===" << std::endl;
 
         bool ok = true;
         collectBounds (*this, "EDITOR", true, ok);
@@ -2136,12 +2186,39 @@ void Simple106AudioProcessorEditor::runDebugAudit()
             if (!centred || !captionInside) ok = false;
         }
 
+        {
+            const bool lfoShapeAligned = lfo1ShapeBox.getY() == lfo2ShapeBox.getY()
+                                      && lfo2ShapeBox.getY() == lfo3ShapeBox.getY();
+            const bool lfoKnobsAligned = lfo1Rate.slider.getY() == lfo2Rate.slider.getY()
+                                      && lfo2Rate.slider.getY() == lfo3Rate.slider.getY();
+            std::cout << "  LFO ALIGN shapeY=" << lfo1ShapeBox.getY()
+                      << "/" << lfo2ShapeBox.getY() << "/" << lfo3ShapeBox.getY()
+                      << " knobY=" << lfo1Rate.slider.getY()
+                      << "/" << lfo2Rate.slider.getY() << "/" << lfo3Rate.slider.getY()
+                      << " " << ((lfoShapeAligned && lfoKnobsAligned) ? "PASS" : "FAIL")
+                      << std::endl;
+            if (! (lfoShapeAligned && lfoKnobsAligned)) ok = false;
+
+            bool voiceLabelsOk = true;
+            for (int i = 0; i < 6; ++i) {
+                const auto expected = "V" + juce::String (i + 1);
+                const bool pass = voiceKnobs[i].label.getText() == expected;
+                std::cout << "  VOICE LABEL " << (i + 1) << "="
+                          << voiceKnobs[i].label.getText()
+                          << " " << (pass ? "PASS" : "FAIL") << std::endl;
+                voiceLabelsOk = voiceLabelsOk && pass;
+            }
+            if (!voiceLabelsOk) ok = false;
+        }
+
         ok = auditFocus (true) && ok;
         ok = auditAttachments (true) && ok;
         ok = auditVoiceMatrix (true) && ok;
         ok = auditRepaintTargets (true) && ok;
+        ok = auditFooter (true) && ok;
+        ok = auditReadoutStrings (true) && ok;
 
-        std::cout << "=== C1 AUDIT " << size.first << "x" << size.second
+        std::cout << "=== C2 AUDIT " << size.first << "x" << size.second
                   << (ok ? " PASS" : " FAIL") << " ===" << std::endl;
         jassert (ok);
         allOk = allOk && ok;
@@ -2208,7 +2285,7 @@ void Simple106AudioProcessorEditor::runDebugAudit()
                              && presetBox.getItemId (0) == 1
                              && presetBox.getItemText (0).startsWith ("01."));
 
-        const char* arpNames[] = { "UP", "DOWN", "U-D", "RAND", "PLAY" };
+        const char* const* arpNames = kArpNames;
         const int arp0 = currentArpIdx;
         arpNextBtn.onClick();
         const int arp1 = currentArpIdx;
@@ -2219,7 +2296,7 @@ void Simple106AudioProcessorEditor::runDebugAudit()
         updateSegmentDisplays();
         check ("ARP READOUT", arp1 == (arp0 + 1) % 5 && arpDisplayOk);
 
-        const char* chordNames[] = { "MAJ", "MIN", "MAJ7", "MIN7", "DOM7", "SUS4", "DIM", "OCT", "5TH" };
+        const char* const* chordNames = kChordNames;
         const int chord0 = currentChordIdx;
         chordNextBtn.onClick();
         const int chord1 = currentChordIdx;
@@ -2230,7 +2307,7 @@ void Simple106AudioProcessorEditor::runDebugAudit()
         updateSegmentDisplays();
         check ("CHORD READOUT", chord1 == (chord0 + 1) % 9 && chordDisplayOk);
 
-        const char* stepNames[] = { "16", "32", "48", "64" };
+        const char* const* stepNames = kStepNames;
         const int pages0 = currentPagesIdx;
         stepsNextBtn.onClick();
         const int pages1 = currentPagesIdx;
@@ -2253,7 +2330,7 @@ void Simple106AudioProcessorEditor::runDebugAudit()
         check ("PAGE READOUT", page1 == (page0 + 1) % juce::jmax (1, maxPages) && pageDisplayOk);
     }
 
-    std::cout << (behaviourOk ? "C1 BEHAVIOUR PASS" : "C1 BEHAVIOUR FAIL") << std::endl;
+    std::cout << (behaviourOk ? "C2 BEHAVIOUR PASS" : "C2 BEHAVIOUR FAIL") << std::endl;
     allOk = allOk && behaviourOk;
-    std::cout << (allOk ? "C1 AUDIT PASS" : "C1 AUDIT FAIL") << std::endl;
+    std::cout << (allOk ? "C2 AUDIT PASS" : "C2 AUDIT FAIL") << std::endl;
 }

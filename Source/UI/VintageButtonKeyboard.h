@@ -1,6 +1,7 @@
 #pragma once
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_audio_basics/juce_audio_basics.h>
+#include "SkinManager.h"
 #include <array>
 
 class VintageButtonKeyboard : public juce::Component {
@@ -42,20 +43,25 @@ public:
 
     void paint(juce::Graphics& g) override {
         auto bounds = getLocalBounds().toFloat();
+        const auto& t = S116::skin().theme();
 
-        // Background Tray
-        g.setColour(juce::Colour(0xff181b21));
+        // Background tray
+        g.setGradientFill (juce::ColourGradient::vertical (t.panelTop, bounds.getY(),
+                                                           t.panelBottom, bounds.getBottom()));
         g.fillRoundedRectangle(bounds, 4.0f);
-        g.setColour(juce::Colour(0xff424854));
+        g.setColour(t.btnRing);
         g.drawRoundedRectangle(bounds, 4.0f, 1.2f);
 
         // --- OCTAVE CONTROLS (Left Section: 0..80px) ---
         auto octArea = juce::Rectangle<float>(6.0f, 6.0f, 74.0f, bounds.getHeight() - 12.0f);
-        g.setColour(juce::Colour(0xff222730));
+        g.setGradientFill (juce::ColourGradient::vertical (t.plateTop, octArea.getY(),
+                                                           t.plateBottom, octArea.getBottom()));
         g.fillRoundedRectangle(octArea, 3.0f);
+        g.setColour(t.btnRing);
+        g.drawRoundedRectangle(octArea, 3.0f, 1.0f);
 
-        g.setColour(juce::Colour(0xffa5b1c2));
-        g.setFont(juce::FontOptions(9.0f).withStyle("Bold"));
+        g.setColour(t.heading);
+        g.setFont(S116::skin().ui(9.0f, 0.10f));
         g.drawText("OCTAVE", octArea.getX(), octArea.getY() + 4.0f, octArea.getWidth(), 12.0f, juce::Justification::centred);
 
         // Octave 5-dot LED ladder
@@ -78,12 +84,14 @@ public:
 
         // Octave Buttons: [-] and [+]
         auto drawOctBtn = [&](juce::Rectangle<float> b, const juce::String& text, bool isDown) {
-            g.setColour(juce::Colour(0xff2d333f));
+            g.setColour(t.btnLedge);
             g.fillRoundedRectangle(b, 3.0f);
-            g.setColour(isDown ? juce::Colour(0xff1e222a) : juce::Colour(0xff3d4554));
+            g.setColour(isDown ? t.btnBottom : t.btnTop);
             g.fillRoundedRectangle(b.reduced(1.0f), 2.5f);
-            g.setColour(juce::Colour(0xfff0f2f5));
-            g.setFont(juce::FontOptions(11.0f).withStyle("Bold"));
+            g.setColour(t.btnRing);
+            g.drawRoundedRectangle(b.reduced(1.0f), 2.5f, 1.0f);
+            g.setColour(t.btnText);
+            g.setFont(S116::skin().ui(11.0f, 0.10f));
             g.drawText(text, b, juce::Justification::centred);
         };
         drawOctBtn(octDownBounds, "OCT -", mouseDownOctDown);
@@ -110,7 +118,7 @@ public:
 
                 bool isDown = activeNotes[static_cast<size_t>(keyIdx)] || (lastMouseDownKey == keyIdx);
 
-                g.setColour(juce::Colour(0xff252a33));
+                g.setColour(t.btnRing);
                 g.fillRoundedRectangle(keyRect, 4.0f);
 
                 auto innerKey = keyRect.reduced(1.2f);
@@ -127,8 +135,8 @@ public:
                 drawKeyLED(g, ledX, ledY, keyIdx);
 
                 // Note label
-                g.setColour(juce::Colour(0xff333a46));
-                g.setFont(juce::FontOptions(9.5f).withStyle("Bold"));
+                g.setColour(t.ruleDark);
+                g.setFont(S116::skin().ui(9.5f, 0.10f));
                 g.drawText(noteNames[keyIdx], keyRect.getX(), keyRect.getBottom() - 18.0f, keyRect.getWidth(), 14.0f, juce::Justification::centred);
             }
 
@@ -146,7 +154,7 @@ public:
 
                 bool isDown = activeNotes[static_cast<size_t>(keyIdx)] || (lastMouseDownKey == keyIdx);
 
-                g.setColour(juce::Colour(0xff101317));
+                g.setColour(juce::Colour(0xff050607));
                 g.fillRoundedRectangle(keyRect, 3.0f);
 
                 auto innerKey = keyRect.reduced(1.0f);
@@ -163,8 +171,8 @@ public:
                 drawKeyLED(g, ledX, ledY, keyIdx);
 
                 // Note label
-                g.setColour(juce::Colour(0xffa5b1c2));
-                g.setFont(juce::FontOptions(8.5f).withStyle("Bold"));
+                g.setColour(t.caption);
+                g.setFont(S116::skin().ui(8.5f, 0.10f));
                 g.drawText(noteNames[keyIdx], keyRect.getX(), keyRect.getBottom() - 15.0f, keyRect.getWidth(), 12.0f, juce::Justification::centred);
             }
     }
