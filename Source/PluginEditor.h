@@ -3,28 +3,96 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "PluginProcessor.h"
-#include "UI/SilverLookAndFeel.h"
+
+#include "S106TypeSizes.h"
+#include "S116Theme.h"
+#include "SkinManager.h"
+// Explicit path: Source/UI also contains a legacy header with this class name.
+#include "../external/s116-ui/include/SilverLookAndFeel.h"
+#include "S116Widgets.h"
+#include "S116Layout.h"
+
+#if S116_HAS_FONTS
+ #include "BinaryData.h"
+#endif
+
 #include "UI/VintageButtonKeyboard.h"
 #include <array>
-#include <memory>
 #include <functional>
+#include <map>
+#include <memory>
+#include <vector>
 
-struct LEDTheme {
-    juce::String name;
-    juce::Colour primary;
-    juce::Colour glow;
-    juce::Colour highlight;
-    juce::Colour unlit;
-    juce::Colour unlitBg;
+class Simple106LookAndFeel : public SilverLookAndFeel
+{
+public:
+    juce::Font getComboBoxFont (juce::ComboBox&) override
+    {
+        return S116::skin().mono (S106Type::kCombo);
+    }
+};
+
+// Footer readout: kit LCD plate with the original 7-segment drawing.
+class SegmentReadout : public S116::LcdPlate {
+public:
+    SegmentReadout(float charWidth, int insetX);
+    void setText(const juce::String& newText);
+#if S106_DEBUG_AUDIT
+    juce::String getText() const { return text; }
+#endif
+    int requiredWidthFor(const juce::String& s) const;
+
+protected:
+    void paintDynamic(juce::Graphics& g) override;
+
+private:
+    void drawString(juce::Graphics& g, float x, float y, float w, float h, const juce::String& text);
+    void drawChar(juce::Graphics& g, float x, float y, float w, float h, char c);
+
+    juce::String text;
+    float charW;
+    int inset;
+};
+
+class VoiceReadout : public S116::LcdPlate
+{
+public:
+    VoiceReadout();
+    void setText (const juce::String& newText);
+    juce::String getText() const { return text; }
+    static juce::Point<int> requiredSize();
+
+protected:
+    void paintDynamic (juce::Graphics&) override;
+
+private:
+    juce::String text;
+};
+
+// Voice panel: panel skin + the six live voice LEDs, driven by isVoiceActive().
+class VoicePanel : public S116::SectionPanel {
+public:
+    VoicePanel() : SectionPanel("VOICE VARIATION MATRIX") {}
+
+    std::function<bool(int)> isVoiceActive;
+    std::array<juce::Rectangle<int>, 6> ledRects;
+
+protected:
+    void paintDynamic(juce::Graphics& g) override;
 };
 
 class SavePatchDialog : public juce::Component {
 public:
     SavePatchDialog(std::function<void(const juce::String&)> onSave, std::function<void()> onCancel);
     void open();
-    void paint(juce::Graphics& g) override;
+    void refreshTheme();
+    juce::Rectangle<int> getDialogBounds() const;
+    void paint(juce::Graphics&) override;
     void resized() override;
     void mouseDown(const juce::MouseEvent&) override;
+
+    static constexpr int kDialogW = 380;
+    static constexpr int kDialogH = 180;
 
 private:
     juce::TextEditor patchNameEditor;
@@ -36,7 +104,9 @@ private:
 
 class Simple106AudioProcessorEditor : public juce::AudioProcessorEditor,
                                       public juce::KeyListener,
-                                      private juce::Timer
+                                      private juce::Timer,
+                                      private juce::ChangeListener,
+                                      private juce::Slider::Listener
 {
 public:
     static constexpr int NUM_CHASSIS_THEMES = 4;
@@ -49,25 +119,21 @@ public:
     void resized() override;
 
     void timerCallback() override;
+    void focusGained (FocusChangeType) override;
     void focusLost (FocusChangeType) override;
     void parentHierarchyChanged() override;
     void visibilityChanged() override;
+
     void mouseDown (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseMove (const juce::MouseEvent&) override;
+    void mouseWheelMove (const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
 
-    // Dual Component & KeyListener Overrides
     bool keyPressed (const juce::KeyPress& key) override;
     bool keyPressed (const juce::KeyPress& key, juce::Component* originatingComponent) override;
     bool keyStateChanged (bool isKeyDown) override;
     bool keyStateChanged (bool isKeyDown, juce::Component* originatingComponent) override;
-
-    const LEDTheme& getActiveTheme() const {
-        return ledThemes[juce::jlimit(0, 6, currentThemeIdx)];
-    }
-
-    const ChassisTheme& getChassisTheme() const {
-        return chassisThemes[juce::jlimit(0, NUM_CHASSIS_THEMES - 1, currentChassisThemeIdx)];
-    }
 
 private:
     struct LabeledSlider {
@@ -75,31 +141,100 @@ private:
         juce::Label label;
     };
 
+#if S106_DEBUG_AUDIT
+    struct KnobCellRef {
+        juce::Slider* slider = nullptr;
+        juce::Label* caption = nullptr;
+        juce::Rectangle<int> cell;   // local to the slider's parent
+        juce::String name;
+    };
+#endif
+
     bool handleKeyPress (const juce::KeyPress& key);
     bool handleKeyStateChanged (bool isKeyDown);
 
-    void setupControl (LabeledSlider& ctrl, const juce::String& paramId, const juce::String& labelText);
-    void setupBox (juce::ComboBox& box, juce::Label& label, const juce::String& paramId, const juce::String& text, const juce::StringArray& items);
+    void setupControl (LabeledSlider& ctrl, const juce::String& paramId,
+                       const juce::String& labelText, juce::Component& parent);
+    void setupBox (juce::ComboBox& box, juce::Label& label, const juce::String& paramId,
+                   const juce::String& text, const juce::StringArray& items,
+                   juce::Component& parent);
+
     void updateVoiceKnobAttachments();
+    void updateSegmentDisplays();
+
     void applyChassisTheme();
-    void applyComboTextColours();
-    void applyValueTextColours();
+    void applyLedTheme();
+    void applyThisEditorsSkin();
+    bool syncThemeParamsFromParameters();
+    S116::ThemeId mapChassisTheme (int index) const;
+    void refreshFooterTheme();
+    void changeListenerCallback (juce::ChangeBroadcaster*) override;
+    void sliderValueChanged (juce::Slider*) override;
+    void refreshVoiceReadouts();
+
     void showSaveDialog();
     void hideSaveDialog();
     void performSave (const juce::String& rawName);
     void refreshPresetList();
-    void renderBackgroundCache();
     void updateUIFromParameters();
     float getSafeParamValue (const juce::String& paramId, float fallback = 0.0f) const;
 
-    void drawSegmentedString (juce::Graphics& g, float x, float y, float w, float h, const juce::String& text);
-    void draw14SegmentChar (juce::Graphics& g, float x, float y, float w, float h, char c);
-    void drawVoiceLED (juce::Graphics& g, float cx, float cy, bool on);
+    void layout();
+    void layoutHeader();
+    void layoutSynthPage();
+    void layoutFxPage();
+    void layoutFooter();
+
+    void placeBare (juce::Slider& slider, juce::Label& caption, juce::Rectangle<int> cell,
+                    const juce::String& name);
+    void placeVoice (juce::Slider& slider, juce::Label& caption, VoiceReadout& readout,
+                     juce::Rectangle<int> cell, const juce::String& name);
+
+    void showSliderValue (juce::Slider* slider);
+    void setIdleHeaderLcd();
+    juce::Slider* sliderAt (juce::Component* component) const;
+
+#if S106_DEBUG_AUDIT
+    void runDebugAudit();
+    bool collectBounds (juce::Component& parent, const juce::String& name,
+                        bool verbose, bool& ok) const;
+    bool auditFocus (bool verbose) const;
+    bool auditAttachments (bool verbose) const;
+    bool auditVoiceMatrix (bool verbose);
+    bool auditRepaintTargets (bool verbose) const;
+    bool auditFooter (bool verbose) const;
+    bool auditReadoutStrings (bool verbose) const;
+    bool auditTextLegibility (bool verbose) const;
+    bool auditComboItemFit (bool verbose) const;
+    bool auditVoiceReadoutFit (bool verbose) const;
+    bool auditPixelContrast (bool verbose);
+#endif
 
     Simple106AudioProcessor& audioProcessor;
-    SilverLookAndFeel silverLookAndFeel;
+    Simple106LookAndFeel silverLookAndFeel;
 
-    // Header Controls
+    // Kit backdrops / pages / panels
+    S116::ChassisBackground chassisBg;
+    S116::HeaderBar headerBar;
+    S116::LcdText headerLcd;
+    juce::Component synthPage, fxPage;
+
+    S116::SectionPanel dcoPanel { "DCO 1 & DCO 2" };
+    S116::SectionPanel filterPanel { "HPF & 24dB VCF" };
+    S116::SectionPanel envPanel { "ENVELOPES" };
+    S116::SectionPanel subPanel { "SUB, NOISE & X-MOD" };
+    S116::SectionPanel lfo1Panel { "LFO 1" };
+    S116::SectionPanel lfo2Panel { "LFO 2" };
+    S116::SectionPanel lfo3Panel { "LFO 3" };
+    VoicePanel voicePanel;
+
+    S116::SectionPanel chorusPanel { "STEREO CHORUS" };
+    S116::SectionPanel delayPanel { "TEMPO-SYNC PING-PONG DELAY" };
+    S116::SectionPanel reverbPanel { "LUSH DIGITAL REVERB" };
+    S116::SectionPanel footerPanel { "SEQUENCER & KEYBOARD" };
+
+    // Header
+    juce::Label presetLabel, chassisThemeLabel, ledThemeLabel;
     juce::ComboBox presetBox;
     juce::TextButton savePresetBtn { "SAVE" };
     juce::TextButton initPresetBtn { "INIT" };
@@ -144,6 +279,7 @@ private:
 
     // Voice Variation Matrix
     LabeledSlider voiceKnobs[6];
+    std::array<VoiceReadout, 6> voiceReadouts;
     juce::ComboBox voiceVarModeBox;
     juce::Label voiceVarLabel;
     juce::TextButton cycleBtn { "CYCLE" };
@@ -178,15 +314,33 @@ private:
     juce::TextButton pagePrevBtn { "<" };
     juce::TextButton pageNextBtn { ">" };
 
+    juce::Label stepsLabel, pageLabel;
+    SegmentReadout arpDisplay { 10.0f, 4 };
+    SegmentReadout chordDisplay { 11.0f, 4 };
+    SegmentReadout stepsDisplay { 11.0f, 6 };
+    SegmentReadout pageDisplay { 11.0f, 4 };
+
     VintageButtonKeyboard buttonKeyboard;
     SavePatchDialog saveDialog;
 
-    juce::Image backgroundCache;
+    // Layout (single source of truth)
+    juce::Rectangle<int> headerRect, bodyRect, footerRect;
+    std::array<juce::Rectangle<int>, 8> synthPanelContent {};
+    std::array<juce::Rectangle<int>, 3> fxPanelContent {};
+#if S106_DEBUG_AUDIT
+    std::vector<KnobCellRef> knobCells;
+    std::vector<std::pair<S116::SectionPanel*, juce::String>> panelTitles;
+#endif
 
+    // Attachments
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> sliderAttachments;
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>> boxAttachments;
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>> btnAttachments;
     std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> voiceAttachments;
+    std::vector<juce::String> fixedAttachedIds, comboAttachedIds, buttonAttachedIds, voiceAttachedIds;
+
+    std::map<juce::Slider*, juce::String> sliderNames;
+    int headerLcdHoldTicks = 0;
 
     int currentTab = 0;
     int currentThemeIdx = 0;
@@ -198,8 +352,6 @@ private:
 
     std::array<bool, NUM_QWERTY_KEYS> qwertyDownState { false };
     std::array<int, NUM_QWERTY_KEYS> qwertyActiveNote { 0 };
-
-    static const LEDTheme ledThemes[7];
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Simple106AudioProcessorEditor)
 };

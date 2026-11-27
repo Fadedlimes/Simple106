@@ -4,6 +4,8 @@ project(Simple106 VERSION 1.0.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(S106_ENABLE_DEBUG_AUDIT "Build Simple106 with the layout/text/behaviour debug audit" OFF)
+
 # Enable Universal Binary support for macOS (Apple Silicon + Intel)
 if (APPLE)
     set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
@@ -15,9 +17,12 @@ include(FetchContent)
 FetchContent_Declare(
     JUCE
     GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
-    GIT_TAG        8.0.0
+    GIT_TAG        8.0.6
 )
 FetchContent_MakeAvailable(JUCE)
+
+# S-116 UI kit (vendored under external/s116-ui; fonts via BinaryData)
+add_subdirectory(external/s116-ui)
 
 # Determine Plugin Formats per OS
 set(PLUGIN_FORMATS VST3 Standalone)
@@ -44,7 +49,7 @@ target_sources(Simple106 PRIVATE
     Source/PluginProcessor.h
     Source/PluginEditor.cpp
     Source/PluginEditor.h
-    Source/UI/SilverLookAndFeel.h
+    Source/S106TypeSizes.h
     Source/UI/VintageButtonKeyboard.h
     Source/DSP/PolyBLEPOscillator.h
     Source/DSP/JunoFilter.h
@@ -59,7 +64,7 @@ target_sources(Simple106 PRIVATE
 )
 
 # 4. Include Folders
-target_include_directories(Simple106 PRIVATE Source Source/DSP Source/UI)
+target_include_directories(Simple106 PRIVATE Source Source/DSP)
 
 # 5. Compiler Flags (Safe check across GCC, Clang, and MSVC)
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -73,8 +78,15 @@ target_compile_definitions(Simple106 PUBLIC
     JUCE_VST3_CAN_REPLACE_VST2=0
 )
 
+if(S106_ENABLE_DEBUG_AUDIT)
+    target_compile_definitions(Simple106 PRIVATE S106_DEBUG_AUDIT=1)
+else()
+    target_compile_definitions(Simple106 PRIVATE S106_DEBUG_AUDIT=0)
+endif()
+
 # 6. Link JUCE Modules
 target_link_libraries(Simple106 PRIVATE
+    s116_ui
     juce::juce_audio_utils
     juce::juce_audio_processors
     juce::juce_dsp

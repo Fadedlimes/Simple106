@@ -1,7 +1,11 @@
 #pragma once
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_audio_basics/juce_audio_basics.h>
+#include "SkinManager.h"
+#include "S106TypeSizes.h"
 #include <array>
+#include <cmath>
+#include <vector>
 
 class VintageButtonKeyboard : public juce::Component {
 public:
@@ -34,29 +38,61 @@ public:
 
     int getOctaveOffset() const { return octaveOffset; }
 
+    struct TextRegion
+    {
+        juce::Rectangle<int> bounds;
+        juce::String text;
+        float fontSize = 0.0f;
+    };
+
+    const std::vector<TextRegion>& getTextRegions() const { return textRegions; }
+
     void shiftOctave(int delta) {
         octaveSetting = juce::jlimit(-2, 2, octaveSetting + delta);
         octaveOffset = octaveSetting * 12;
         repaint();
     }
 
+    static int textBoxHeight (const juce::Font& font, const juce::String& text)
+    {
+        juce::GlyphArrangement ga;
+        ga.addLineOfText (font, text, 0.0f, 0.0f);
+        return (int) std::ceil (ga.getBoundingBox (0, ga.getNumGlyphs(), true).getHeight()) + 2;
+    }
+
     void paint(juce::Graphics& g) override {
         auto bounds = getLocalBounds().toFloat();
+        textRegions.clear();
+        const auto& t = S116::skin().theme();
+        const auto octaveInk   = S116::readableTextColour (t.plateTop);
+        const auto octButtonInk = S116::readableTextColour (t.btnTop);
+        const auto whiteKeyInk = S116::readableTextColour (juce::Colour (0xfff8f9fb));
+        const auto blackKeyInk = S116::readableTextColour (juce::Colour (0xff2c323c));
 
-        // Background Tray
-        g.setColour(juce::Colour(0xff181b21));
+        // Background tray
+        g.setGradientFill (juce::ColourGradient::vertical (t.panelTop, bounds.getY(),
+                                                           t.panelBottom, bounds.getBottom()));
         g.fillRoundedRectangle(bounds, 4.0f);
-        g.setColour(juce::Colour(0xff424854));
+        g.setColour(t.btnRing);
         g.drawRoundedRectangle(bounds, 4.0f, 1.2f);
 
         // --- OCTAVE CONTROLS (Left Section: 0..80px) ---
         auto octArea = juce::Rectangle<float>(6.0f, 6.0f, 74.0f, bounds.getHeight() - 12.0f);
-        g.setColour(juce::Colour(0xff222730));
+        g.setGradientFill (juce::ColourGradient::vertical (t.plateTop, octArea.getY(),
+                                                           t.plateBottom, octArea.getBottom()));
         g.fillRoundedRectangle(octArea, 3.0f);
+        g.setColour(t.btnRing);
+        g.drawRoundedRectangle(octArea, 3.0f, 1.0f);
 
-        g.setColour(juce::Colour(0xffa5b1c2));
-        g.setFont(juce::FontOptions(9.0f).withStyle("Bold"));
-        g.drawText("OCTAVE", octArea.getX(), octArea.getY() + 4.0f, octArea.getWidth(), 12.0f, juce::Justification::centred);
+        g.setColour(octaveInk);
+        const auto octaveFont = S116::skin().ui (S106Type::kKeyboardOctave, 0.10f);
+        g.setFont(octaveFont);
+        const auto octaveRect = juce::Rectangle<int> (juce::roundToInt (octArea.getX()),
+                                                       juce::roundToInt (octArea.getY()) + 3,
+                                                       juce::roundToInt (octArea.getWidth()),
+                                                       textBoxHeight (octaveFont, "OCTAVE"));
+        g.drawText("OCTAVE", octaveRect, juce::Justification::centred);
+        textRegions.push_back ({ octaveRect, "OCTAVE", S106Type::kKeyboardOctave });
 
         // Octave 5-dot LED ladder
         for (int i = -2; i <= 2; ++i) {
@@ -78,13 +114,18 @@ public:
 
         // Octave Buttons: [-] and [+]
         auto drawOctBtn = [&](juce::Rectangle<float> b, const juce::String& text, bool isDown) {
-            g.setColour(juce::Colour(0xff2d333f));
+            g.setColour(t.btnLedge);
             g.fillRoundedRectangle(b, 3.0f);
-            g.setColour(isDown ? juce::Colour(0xff1e222a) : juce::Colour(0xff3d4554));
+            g.setColour(isDown ? t.btnBottom : t.btnTop);
             g.fillRoundedRectangle(b.reduced(1.0f), 2.5f);
-            g.setColour(juce::Colour(0xfff0f2f5));
-            g.setFont(juce::FontOptions(11.0f).withStyle("Bold"));
-            g.drawText(text, b, juce::Justification::centred);
+            g.setColour(t.btnRing);
+            g.drawRoundedRectangle(b.reduced(1.0f), 2.5f, 1.0f);
+            g.setColour(octButtonInk);
+            const auto btnFont = S116::skin().ui (S106Type::kKeyboardOctBtn, 0.10f);
+            g.setFont(btnFont);
+            const auto textRect = b.toNearestInt();
+            g.drawText(text, textRect, juce::Justification::centred);
+            textRegions.push_back ({ textRect, text, S106Type::kKeyboardOctBtn });
         };
         drawOctBtn(octDownBounds, "OCT -", mouseDownOctDown);
         drawOctBtn(octUpBounds,   "OCT +", mouseDownOctUp);
@@ -110,7 +151,7 @@ public:
 
                 bool isDown = activeNotes[static_cast<size_t>(keyIdx)] || (lastMouseDownKey == keyIdx);
 
-                g.setColour(juce::Colour(0xff252a33));
+                g.setColour(t.btnRing);
                 g.fillRoundedRectangle(keyRect, 4.0f);
 
                 auto innerKey = keyRect.reduced(1.2f);
@@ -127,9 +168,15 @@ public:
                 drawKeyLED(g, ledX, ledY, keyIdx);
 
                 // Note label
-                g.setColour(juce::Colour(0xff333a46));
-                g.setFont(juce::FontOptions(9.5f).withStyle("Bold"));
-                g.drawText(noteNames[keyIdx], keyRect.getX(), keyRect.getBottom() - 18.0f, keyRect.getWidth(), 14.0f, juce::Justification::centred);
+                g.setColour(whiteKeyInk);
+                const auto noteFont = S116::skin().ui (S106Type::kKeyboardWhite, 0.10f);
+                g.setFont(noteFont);
+                const int noteH = textBoxHeight (noteFont, noteNames[keyIdx]);
+                const auto noteRect = juce::Rectangle<int> (juce::roundToInt (keyRect.getX()),
+                                                             juce::roundToInt (keyRect.getBottom()) - noteH - 2,
+                                                             juce::roundToInt (keyRect.getWidth()), noteH);
+                g.drawText(noteNames[keyIdx], noteRect, juce::Justification::centred);
+                textRegions.push_back ({ noteRect, noteNames[keyIdx], S106Type::kKeyboardWhite });
             }
 
             // 2. Draw 10 Black Keys
@@ -146,7 +193,7 @@ public:
 
                 bool isDown = activeNotes[static_cast<size_t>(keyIdx)] || (lastMouseDownKey == keyIdx);
 
-                g.setColour(juce::Colour(0xff101317));
+                g.setColour(juce::Colour(0xff050607));
                 g.fillRoundedRectangle(keyRect, 3.0f);
 
                 auto innerKey = keyRect.reduced(1.0f);
@@ -163,9 +210,15 @@ public:
                 drawKeyLED(g, ledX, ledY, keyIdx);
 
                 // Note label
-                g.setColour(juce::Colour(0xffa5b1c2));
-                g.setFont(juce::FontOptions(8.5f).withStyle("Bold"));
-                g.drawText(noteNames[keyIdx], keyRect.getX(), keyRect.getBottom() - 15.0f, keyRect.getWidth(), 12.0f, juce::Justification::centred);
+                g.setColour(blackKeyInk);
+                const auto noteFont = S116::skin().ui (S106Type::kKeyboardBlack, 0.10f);
+                g.setFont(noteFont);
+                const int noteH = textBoxHeight (noteFont, noteNames[keyIdx]);
+                const auto noteRect = juce::Rectangle<int> (juce::roundToInt (keyRect.getX()),
+                                                             juce::roundToInt (keyRect.getBottom()) - noteH - 2,
+                                                             juce::roundToInt (keyRect.getWidth()), noteH);
+                g.drawText(noteNames[keyIdx], noteRect, juce::Justification::centred);
+                textRegions.push_back ({ noteRect, noteNames[keyIdx], S106Type::kKeyboardBlack });
             }
     }
 
@@ -251,6 +304,7 @@ private:
 
     juce::Rectangle<float> octDownBounds;
     juce::Rectangle<float> octUpBounds;
+    std::vector<TextRegion> textRegions;
     std::array<juce::Rectangle<float>, 15> whiteKeyBounds;
     std::array<juce::Rectangle<float>, 25> blackKeyBounds;
 
