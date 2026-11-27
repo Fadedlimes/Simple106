@@ -8,7 +8,8 @@
 
 **Simple106** is a versatile 6-voice polyphonic synthesizer plugin and standalone instrument. Designed with the tactile aesthetic and immediacy of classic 80s/90s silver-box electronic hardware, it blends the analog warmth of digitally controlled oscillators, rich diode wavefolding, audio-rate cross-modulation, lush stereo BBD chorus, and discrete voice variation with modern performance tools like a 64-step sequencer, chord engine, and multi-mode arpeggiator.
 
-<img width="920" height="639" alt="image" src="https://github.com/user-attachments/assets/6df81ea4-26aa-4e53-b818-b47371cc58d2" />
+<img width="1080" height="841" alt="image" src="https://github.com/user-attachments/assets/38d5a825-e028-43a2-9209-9277e1f0ef0d" />
+
 
 ---
 
